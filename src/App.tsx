@@ -760,7 +760,7 @@ function AuthPage({ initialMode }: { initialMode: AuthMode }) {
       return;
     }
     localStorage.setItem("magnet_token", payload.token);
-    window.location.replace(localStorage.getItem("magnet_last_path") || "/app");
+    window.location.replace(nextAppPathAfterAuth());
   }
 
   async function submitGoogle(credential: string) {
@@ -780,7 +780,7 @@ function AuthPage({ initialMode }: { initialMode: AuthMode }) {
       return;
     }
     localStorage.setItem("magnet_token", payload.token);
-    window.location.replace(localStorage.getItem("magnet_last_path") || "/app");
+    window.location.replace(nextAppPathAfterAuth());
   }
 
   return (
@@ -815,17 +815,34 @@ function AuthPage({ initialMode }: { initialMode: AuthMode }) {
   );
 }
 
+function nextAppPathAfterAuth() {
+  const storedPath = localStorage.getItem("magnet_last_path") || "/";
+  if (window.location.hostname.startsWith("app.")) {
+    return storedPath.replace(/^\/app\/?/, "/") || "/";
+  }
+  return storedPath;
+}
+
 function AppEntry() {
   const path = window.location.pathname;
-  const isAppHost = window.location.hostname.startsWith("app.");
+  const hostname = window.location.hostname;
+  const isAppHost = hostname.startsWith("app.");
+  const isLocalHost = hostname === "localhost" || hostname === "127.0.0.1";
+  const isAppRoute = path === "/app" || path.startsWith("/app/");
+  const isAuthRoute = path === "/login" || path === "/register";
   const token = localStorage.getItem("magnet_token");
 
   if (path === "/privacy") return <LegalPage type="privacy" />;
   if (path === "/terms") return <LegalPage type="terms" />;
+  if ((isAppRoute || isAuthRoute) && !isAppHost && !isLocalHost) {
+    const targetPath = isAppRoute ? path.replace(/^\/app\/?/, "/") || "/" : path;
+    window.location.replace(`https://app.magnetcloud.app${targetPath}`);
+    return null;
+  }
   if (path === "/login") return <AuthPage initialMode="login" />;
   if (path === "/register") return <AuthPage initialMode="register" />;
   if (isAppHost && !token) return <AuthPage initialMode="login" />;
-  if (path === "/app" || path.startsWith("/app/") || isAppHost) return <MagnetPanel />;
+  if (isAppRoute || isAppHost) return <MagnetPanel />;
   return <LandingPage />;
 }
 
@@ -988,12 +1005,13 @@ const sectionSlugs: Record<string, string> = {
 const slugSections = Object.fromEntries(Object.entries(sectionSlugs).map(([sectionName, slug]) => [slug, sectionName]));
 
 function sectionFromLocation() {
-  const slug = window.location.pathname.replace(/^\/app\/?/, "").split("/")[0];
+  const slug = window.location.pathname.replace(/^\/app\/?/, "").replace(/^\//, "").split("/")[0];
   return slugSections[slug] || "Inicio";
 }
 
 function appPathForSection(sectionName: string) {
   const slug = sectionSlugs[sectionName] ?? "";
+  if (window.location.hostname.startsWith("app.")) return slug ? `/${slug}` : "/";
   return slug ? `/app/${slug}` : "/app";
 }
 
@@ -1018,6 +1036,15 @@ function MagnetPanel() {
   async function load(nextAssistantId = assistantId) {
     const query = nextAssistantId ? `?assistantId=${nextAssistantId}` : "";
     const response = await authFetch(`/api/bootstrap${query}`);
+    if (response.status === 401) {
+      localStorage.removeItem("magnet_token");
+      window.location.replace("/login");
+      return;
+    }
+    if (!response.ok) {
+      setError("No se pudo cargar tu cuenta. Inicia sesión nuevamente.");
+      return;
+    }
     const payload = await response.json() as Bootstrap;
     setData(payload);
     const active = payload.activeAssistant || payload.assistants[0];

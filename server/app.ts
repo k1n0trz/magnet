@@ -20,6 +20,22 @@ interface AppOptions {
   };
 }
 
+const appHost = process.env.MAGNET_APP_HOST || "app.magnetcloud.app";
+
+function hostnameFromRequest(hostname: string) {
+  return hostname.split(":")[0].toLowerCase();
+}
+
+function isAllowedAppHost(hostname: string) {
+  return hostname === appHost || hostname === "localhost" || hostname === "127.0.0.1";
+}
+
+function appRedirectPath(pathname: string) {
+  if (pathname === "/app") return "/";
+  if (pathname.startsWith("/app/")) return pathname.slice(4) || "/";
+  return pathname;
+}
+
 export function createApp(options: AppOptions = {}) {
   const app = express();
   const store = options.store || createMemoryStore(false);
@@ -36,6 +52,19 @@ export function createApp(options: AppOptions = {}) {
   app.use(cors());
   app.use(express.json({ limit: "2mb" }));
   app.use(rateLimit({ windowMs: 60_000, limit: 240, standardHeaders: true, legacyHeaders: false }));
+
+  app.use((req, res, next) => {
+    const hostname = hostnameFromRequest(req.hostname || req.get("host") || "");
+    const isAppRoute = req.path === "/app" || req.path.startsWith("/app/");
+    const isAuthRoute = req.path === "/login" || req.path === "/register";
+
+    if ((isAppRoute || isAuthRoute) && !isAllowedAppHost(hostname)) {
+      res.redirect(302, `https://${appHost}${appRedirectPath(req.path)}`);
+      return;
+    }
+
+    next();
+  });
 
   app.use("/api", apiRouter(store, options.runtime || {
     persistence: "memory",

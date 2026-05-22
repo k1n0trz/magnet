@@ -183,7 +183,7 @@ export function apiRouter(store: Store, runtime: RuntimeStatus) {
     }
 
     const user = req.user!;
-    const appBaseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get("host")}`;
+    const appBaseUrl = (process.env.APP_BASE_URL || `${req.protocol}://${req.get("host")}`).replace(/\/$/, "");
     const preferenceResponse = await fetch("https://api.mercadopago.com/checkout/preferences", {
       method: "POST",
       headers: {
@@ -209,9 +209,9 @@ export function apiRouter(store: Store, runtime: RuntimeStatus) {
           packageId: selectedPackage.id
         }),
         back_urls: {
-          success: `${appBaseUrl}/app?billing=success`,
-          pending: `${appBaseUrl}/app?billing=pending`,
-          failure: `${appBaseUrl}/app?billing=failure`
+          success: `${appBaseUrl}/?billing=success`,
+          pending: `${appBaseUrl}/?billing=pending`,
+          failure: `${appBaseUrl}/?billing=failure`
         },
         notification_url: `${appBaseUrl}/api/billing/mercadopago/webhook`,
         auto_return: "approved",
@@ -269,11 +269,9 @@ export function apiRouter(store: Store, runtime: RuntimeStatus) {
     });
   });
 
-  router.get("/bootstrap", optionalAuth(store), async (req, res) => {
+  router.get("/bootstrap", requireAuth(store), async (req, res) => {
     const allAssistants = await store.listAssistants();
-    const assistants = req.user
-      ? allAssistants.filter((assistant) => assistant.organizationId === req.user!.organizationId)
-      : allAssistants;
+    const assistants = allAssistants.filter((assistant) => assistant.organizationId === req.user!.organizationId);
     const assistantId = String(req.query.assistantId || assistants[0]?.id || "");
     const activeAssistant = assistants.find((assistant) => assistant.id === assistantId) || assistants[0];
 

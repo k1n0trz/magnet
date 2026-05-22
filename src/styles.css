@@ -2421,7 +2421,10 @@ button:not(:disabled):hover,
   grid-template-columns: 1.55fr repeat(4, 1fr);
   gap: 48px;
   padding-top: 24px;
-  border-top: 1px solid rgba(190, 226, 218, 0.12);
+  border-top: 1px solid rgba(190, 226, 218, 0.2);
+  color: #d8e6e2;
+  opacity: 1;
+  filter: none;
 }
 
 .landing-v2 .landing-footer .magnet-word {
@@ -2430,21 +2433,23 @@ button:not(:disabled):hover,
 
 .landing-v2 .landing-footer p {
   max-width: 245px;
+  color: #cbd8d5;
   font-size: 14px;
 }
 
 .landing-v2 .landing-footer nav a {
-  color: #95a3a6;
+  color: #c4d2cf;
   font-size: 14px;
 }
 
 .landing-v2 .landing-footer small,
 .landing-v2 .legal-links {
   grid-column: span 3;
+  color: #b9c8c5;
 }
 
 .landing-v2 .social-icons {
-  color: #c2cdcc;
+  color: #e5efed;
   letter-spacing: 13px;
 }
 
@@ -2557,11 +2562,16 @@ button:not(:disabled):hover,
 .landing-v2 .how-it-works,
 .landing-v2 .integrations,
 .landing-v2 .landing-prices,
-.landing-v2 .cta-band,
-.landing-v2 .landing-footer {
+.landing-v2 .cta-band {
   animation: sectionReveal both;
   animation-timeline: view();
   animation-range: entry 0% cover 28%;
+}
+
+.landing-v2 .landing-footer {
+  animation: none;
+  opacity: 1;
+  filter: none;
 }
 
 .landing-v2 .landing-hero {
@@ -2574,8 +2584,7 @@ button:not(:disabled):hover,
   .landing-v2 .how-it-works,
   .landing-v2 .integrations,
   .landing-v2 .landing-prices,
-  .landing-v2 .cta-band,
-  .landing-v2 .landing-footer {
+  .landing-v2 .cta-band {
     animation: sectionReveal 720ms ease both;
   }
 }

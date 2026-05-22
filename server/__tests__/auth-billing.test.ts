@@ -78,4 +78,23 @@ describe("auth and billing", () => {
 
     expect(response.status).toBe(403);
   });
+
+  it("does not expose bootstrap data without a valid session", async () => {
+    const app = createApp({ store: createMemoryStore(true) });
+
+    const response = await request(app).get("/api/bootstrap");
+
+    expect(response.status).toBe(401);
+  });
+
+  it("keeps marketing /app routes off the public domain", async () => {
+    const app = createApp({ store: createMemoryStore(false) });
+
+    const response = await request(app)
+      .get("/app/chat")
+      .set("Host", "magnetcloud.app");
+
+    expect(response.status).toBe(302);
+    expect(response.headers.location).toBe("https://app.magnetcloud.app/chat");
+  });
 });
