@@ -1,0 +1,15 @@
+.env
+.env.*
+!.env.example
+
+node_modules/
+dist/
+.vercel/
+.claude/
+
+*.log
+npm-debug.log*
+
+qa-*.png
+
+.domain-contact.yaml
