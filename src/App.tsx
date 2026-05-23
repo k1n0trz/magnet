@@ -322,8 +322,8 @@ function normalizeChannelSettings(channelId: VisibleChannelType, channel?: Chann
 
 type AuthMode = "login" | "register";
 
-function LogoMark() {
-  return <span className="magnet-word">M<span>A</span>GNET</span>;
+function LogoMark({ className = "magnet-logo-img" }: { className?: string }) {
+  return <img className={className} src="/img/brand/logo-amplio-magnet-blanco.png" alt="MAGNET" />;
 }
 
 function LegacyLandingPage() {
@@ -909,35 +909,84 @@ function ChannelSettingsForm(props: {
       )}
 
       {channel.channel === "instagram" && (
-        <Field label="Token de acceso">
-          <div className="copy-field">
+        <>
+          <Field label="ID cuenta Instagram">
             <input
-              type={props.showToken ? "text" : "password"}
-              value={credentials.permanentAccessTokenEncrypted || ""}
-              onChange={(e) => updateCredential("permanentAccessTokenEncrypted", e.target.value)}
-              placeholder="Token de acceso de Instagram API"
+              value={credentials.instagramAccountId || ""}
+              onChange={(e) => updateCredential("instagramAccountId", e.target.value)}
+              placeholder="Instagram professional account ID"
             />
-            <button onClick={() => props.setShowToken(!props.showToken)}>
-              <ShieldCheck size={17} />
-            </button>
-          </div>
-        </Field>
+          </Field>
+          <Field label="ID pagina Facebook">
+            <input
+              value={credentials.facebookPageId || ""}
+              onChange={(e) => updateCredential("facebookPageId", e.target.value)}
+              placeholder="Pagina conectada a Instagram"
+            />
+          </Field>
+          <Field label="ID app Meta">
+            <input
+              value={credentials.metaAppId || ""}
+              onChange={(e) => updateCredential("metaAppId", e.target.value)}
+              placeholder="App ID de Meta for Developers"
+            />
+          </Field>
+          <Field label="Token de acceso">
+            <div className="copy-field">
+              <input
+                type={props.showToken ? "text" : "password"}
+                value={credentials.permanentAccessTokenEncrypted || ""}
+                onChange={(e) => updateCredential("permanentAccessTokenEncrypted", e.target.value)}
+                placeholder="Token con permiso para mensajes de Instagram"
+              />
+              <button onClick={() => props.setShowToken(!props.showToken)}>
+                <ShieldCheck size={17} />
+              </button>
+            </div>
+          </Field>
+          <Field label="Checklist Meta">
+            <p className="muted-text">
+              Activa y guarda este canal antes de verificar el webhook en Meta. Usa la URL webhook y el token de verificacion de abajo.
+            </p>
+          </Field>
+        </>
       )}
 
       {channel.channel === "messenger" && (
-        <Field label="Token de acceso">
-          <div className="copy-field">
+        <>
+          <Field label="ID pagina Facebook">
             <input
-              type={props.showToken ? "text" : "password"}
-              value={credentials.permanentAccessTokenEncrypted || ""}
-              onChange={(e) => updateCredential("permanentAccessTokenEncrypted", e.target.value)}
-              placeholder="Token de acceso de Messenger API"
+              value={credentials.facebookPageId || ""}
+              onChange={(e) => updateCredential("facebookPageId", e.target.value)}
+              placeholder="Pagina que recibe Messenger"
             />
-            <button onClick={() => props.setShowToken(!props.showToken)}>
-              <ShieldCheck size={17} />
-            </button>
-          </div>
-        </Field>
+          </Field>
+          <Field label="ID app Meta">
+            <input
+              value={credentials.metaAppId || ""}
+              onChange={(e) => updateCredential("metaAppId", e.target.value)}
+              placeholder="App ID de Meta for Developers"
+            />
+          </Field>
+          <Field label="Token de acceso">
+            <div className="copy-field">
+              <input
+                type={props.showToken ? "text" : "password"}
+                value={credentials.permanentAccessTokenEncrypted || ""}
+                onChange={(e) => updateCredential("permanentAccessTokenEncrypted", e.target.value)}
+                placeholder="Page access token con pages_messaging"
+              />
+              <button onClick={() => props.setShowToken(!props.showToken)}>
+                <ShieldCheck size={17} />
+              </button>
+            </div>
+          </Field>
+          <Field label="Checklist Meta">
+            <p className="muted-text">
+              Activa y guarda este canal antes de verificar el webhook en Meta. Usa la URL webhook y el token de verificacion de abajo.
+            </p>
+          </Field>
+        </>
       )}
 
       {channel.channel === "wordpress" && (
@@ -1328,7 +1377,7 @@ function MagnetPanel() {
       <aside className="sidebar">
         <div className="sidebar-head">
           <div className="brand">
-            <div className="brand-mark"><Bot size={28} /></div>
+            <LogoMark className="brand-logo-img" />
             <div>
               <strong>MAGNET</strong>
               <span>Lead Management Agent</span>
@@ -1383,7 +1432,7 @@ function MagnetPanel() {
             <Menu size={20} />
           </button>
           <div className="mobile-brand">
-            <div className="brand-mark"><Bot size={20} /></div>
+            <LogoMark className="mobile-logo-img" />
             <div>
               <strong>MAGNET</strong>
               <span>{assistant.name}</span>

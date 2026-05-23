@@ -161,6 +161,32 @@ describe("Channel Handlers", () => {
       });
     });
 
+    it("parses Instagram messaging webhook events", () => {
+      const payload = {
+        entry: [{
+          messaging: [{
+            sender: { id: "igscoped-456" },
+            recipient: { id: "17841400000000000" },
+            timestamp: 1735689600000,
+            message: {
+              mid: "ig-mid-123",
+              text: "Hola desde Instagram"
+            }
+          }]
+        }]
+      };
+
+      const messages = handler.parseInbound(payload);
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toMatchObject({
+        messageId: "ig-mid-123",
+        from: "igscoped-456",
+        text: "Hola desde Instagram",
+        type: "text"
+      });
+      expect(messages[0].timestamp).toBe(1735689600);
+    });
+
     it("returns error when token is missing", async () => {
       const settings = {
         channel: "instagram" as const,

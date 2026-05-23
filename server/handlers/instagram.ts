@@ -20,6 +20,22 @@ export function createInstagramHandler(): ChannelHandler {
       const entries = asArray((payload as { entry?: unknown[] }).entry);
 
       for (const entry of entries) {
+        const messaging = asArray((entry as { messaging?: unknown[] }).messaging);
+        for (const event of messaging) {
+          const msg = (event as any).message;
+          if (!msg) continue;
+
+          messages.push({
+            messageId: msg.mid || msg.id || "",
+            from: (event as any).sender?.id || "",
+            profileName: "",
+            timestamp: normalizeTimestamp((event as any).timestamp),
+            type: msg.attachments ? attachmentType(msg.attachments) : "text",
+            text: msg.text || "",
+            mediaUrl: msg.attachments?.[0]?.payload?.url || ""
+          });
+        }
+
         const changes = asArray((entry as { changes?: unknown[] }).changes);
         for (const change of changes) {
           const value = (change as { value?: Record<string, unknown> }).value || {};
@@ -85,4 +101,17 @@ export function createInstagramHandler(): ChannelHandler {
 
 function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
+}
+
+function normalizeTimestamp(value: unknown) {
+  const timestamp = Number(value);
+  if (!Number.isFinite(timestamp)) return Date.now() / 1000;
+  return timestamp > 9999999999 ? timestamp / 1000 : timestamp;
+}
+
+function attachmentType(attachments: unknown): ChannelInboundMessage["type"] {
+  const first = asArray(attachments)[0] as { type?: string } | undefined;
+  if (first?.type === "audio") return "audio";
+  if (first?.type === "file") return "document";
+  return "image";
 }
