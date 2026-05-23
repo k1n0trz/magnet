@@ -2258,6 +2258,10 @@ function SettingsView(props: {
             {uuidError && <small className="field-error">El formato del identificador es incorrecto</small>}
             <small>Este campo permite usar la configuración de otro asistente como referencia para replicar plantillas, etiquetas, disparadores, entrenamiento u otras configuraciones.</small>
           </Field>
+          <div className="settings-subsection">
+            <strong>Reportes automaticos</strong>
+            <span>Define el WhatsApp responsable y cada cuantas horas Magnet enviara el resumen.</span>
+          </div>
           <Field label="Resumen por WhatsApp">
             <label className="check-row"><input type="checkbox" checked={operations.summaryEnabled} onChange={(event) => updateOperations({ summaryEnabled: event.target.checked })} /> Enviar resumen automatico al responsable</label>
           </Field>
@@ -2268,6 +2272,10 @@ function SettingsView(props: {
             <Field label="Cada cuantas horas">
               <input type="number" min="1" value={operations.summaryIntervalHours} onChange={(event) => updateOperations({ summaryIntervalHours: Number(event.target.value) })} />
             </Field>
+          </div>
+          <div className="settings-subsection">
+            <strong>Remarketing</strong>
+            <span>Reactiva conversaciones que se quedaron sin cierre o brief completo.</span>
           </div>
           <Field label="Remarketing">
             <label className="check-row"><input type="checkbox" checked={operations.remarketingEnabled} onChange={(event) => updateOperations({ remarketingEnabled: event.target.checked })} /> Reactivar conversaciones sin cierre</label>
