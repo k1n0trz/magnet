@@ -97,7 +97,19 @@ export interface Assistant {
   createdAt: string;
   updatedAt: string;
   ai: AssistantAISettings;
+  operations: AssistantOperationsSettings;
   channels: Record<ChannelType, ChannelSettings>;
+}
+
+export interface AssistantOperationsSettings {
+  ownerWhatsAppNumber: string;
+  summaryEnabled: boolean;
+  summaryIntervalHours: number;
+  lastSummaryAt: string;
+  remarketingEnabled: boolean;
+  remarketingDelayHours: number;
+  remarketingWebsiteUrl: string;
+  remarketingMessage: string;
 }
 
 export interface Organization {

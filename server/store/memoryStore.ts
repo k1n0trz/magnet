@@ -154,6 +154,16 @@ export function buildAssistant(input: Partial<Assistant>): Assistant {
       voiceSpeed: input.ai?.voiceSpeed ?? 1,
       transcribeIncomingAudio: input.ai?.transcribeIncomingAudio ?? true
     },
+    operations: {
+      ownerWhatsAppNumber: input.operations?.ownerWhatsAppNumber || "",
+      summaryEnabled: input.operations?.summaryEnabled ?? false,
+      summaryIntervalHours: input.operations?.summaryIntervalHours ?? 6,
+      lastSummaryAt: input.operations?.lastSummaryAt || "",
+      remarketingEnabled: input.operations?.remarketingEnabled ?? false,
+      remarketingDelayHours: input.operations?.remarketingDelayHours ?? 24,
+      remarketingWebsiteUrl: input.operations?.remarketingWebsiteUrl || "",
+      remarketingMessage: input.operations?.remarketingMessage || "Hola, queria retomar nuestra conversacion. Si aun te interesa, podemos avanzar con los datos de tu empresa. Tambien puedes visitar nuestro sitio web para conocer mas."
+    },
     channels: buildChannels(id, input.channels)
   };
 }
@@ -305,6 +315,7 @@ export function createMemoryStore(seed = false): Store {
       if (!assistant) throw new Error("Assistant not found");
       Object.assign(assistant, patch, { updatedAt: now() });
       assistant.ai = { ...assistant.ai, ...patch.ai, assistantId: id };
+      assistant.operations = { ...assistant.operations, ...patch.operations };
       if (patch.channels) {
         Object.keys(patch.channels).forEach((channel) => {
           const patchChannel = patch.channels![channel as ChannelType];

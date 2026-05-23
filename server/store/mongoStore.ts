@@ -210,6 +210,7 @@ function createMongoStore(): Store {
         ...existing,
         ...patch,
         ai: { ...existing.ai, ...patch.ai, assistantId: id },
+        operations: { ...existing.operations, ...patch.operations },
         channels,
         updatedAt: now()
       };

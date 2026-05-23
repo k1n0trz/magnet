@@ -117,6 +117,16 @@ interface Assistant {
     voiceSpeed: number;
     transcribeIncomingAudio: boolean;
   };
+  operations: {
+    ownerWhatsAppNumber: string;
+    summaryEnabled: boolean;
+    summaryIntervalHours: number;
+    lastSummaryAt: string;
+    remarketingEnabled: boolean;
+    remarketingDelayHours: number;
+    remarketingWebsiteUrl: string;
+    remarketingMessage: string;
+  };
   channels: Record<ChannelType, ChannelSettings>;
   whatsapp?: ChannelSettings; // Backward compat
 }
@@ -317,6 +327,19 @@ function normalizeChannelSettings(channelId: VisibleChannelType, channel?: Chann
     credentials: channel?.credentials || {},
     createdAt: channel?.createdAt || "",
     updatedAt: channel?.updatedAt || ""
+  };
+}
+
+function normalizeOperations(assistant: Assistant) {
+  return {
+    ownerWhatsAppNumber: assistant.operations?.ownerWhatsAppNumber || "",
+    summaryEnabled: assistant.operations?.summaryEnabled ?? false,
+    summaryIntervalHours: assistant.operations?.summaryIntervalHours ?? 6,
+    lastSummaryAt: assistant.operations?.lastSummaryAt || "",
+    remarketingEnabled: assistant.operations?.remarketingEnabled ?? false,
+    remarketingDelayHours: assistant.operations?.remarketingDelayHours ?? 24,
+    remarketingWebsiteUrl: assistant.operations?.remarketingWebsiteUrl || "https://k1n0.dev",
+    remarketingMessage: assistant.operations?.remarketingMessage || "Hola, queria retomar nuestra conversacion. Si aun te interesa, podemos avanzar con los datos de tu empresa."
   };
 }
 
@@ -1781,7 +1804,7 @@ function Chat(props: {
   });
   const selectedConversation = props.conversations.find((conversation) => conversation.id === props.selectedConversationId);
   const selectedMessages = props.messages;
-  const selectedHasError = selectedMessages.some((message) => message.status === "failed");
+  const selectedHasError = conversationNeedsReview(selectedMessages);
   const selectedTags = uniqueDisplayTags([...(selectedConversation?.tags || []), ...(props.selectedContact?.tags || []), selectedConversation?.status || ""]).slice(0, 4);
   const selectedWasHandledByBot = selectedConversation?.botEnabled || selectedMessages.some((message) => message.sender === "assistant");
   const filteredConversations = props.conversations
@@ -1879,7 +1902,7 @@ function Chat(props: {
           </div>
         )}
         {filteredConversations.map(({ conversation, contact, messages, tagList, lastMessage, isUnread, channel }) => {
-          const hasError = messages.some((message) => message.status === "failed");
+          const hasError = conversationNeedsReview(messages);
           const wasHandledByBot = conversation.botEnabled || messages.some((message) => message.sender === "assistant");
           const visibleTags = tagList.slice(0, 3);
           return (
@@ -1926,6 +1949,20 @@ function deriveConversationTags(conversation: Conversation, _contact: Contact | 
   if (lastText.includes("precio") || lastText.includes("pago") || lastText.includes("comprar")) tags.push("interés_comercial");
   if (lastText.includes("envío") || lastText.includes("domicilio")) tags.push("envío");
   return tags.filter(Boolean);
+}
+
+function conversationNeedsReview(messages: Message[]) {
+  const failedTimes = messages
+    .filter((message) => message.status === "failed")
+    .map((message) => new Date(message.timestamp || "").getTime())
+    .filter(Number.isFinite);
+  if (!failedTimes.length) return false;
+
+  const lastFailure = Math.max(...failedTimes);
+  return !messages.some((message) => {
+    const sentAfterFailure = new Date(message.timestamp || "").getTime() > lastFailure;
+    return sentAfterFailure && message.direction === "outbound" && ["sent", "delivered", "read"].includes(message.status);
+  });
 }
 
 function uniqueDisplayTags(tags: Array<string | undefined>) {
@@ -2187,6 +2224,10 @@ function SettingsView(props: {
   const uuidError = draft.referenceAssistantId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(draft.referenceAssistantId);
   const selectedVisibleChannel = visibleChannelTypes.includes(selectedChannel as VisibleChannelType) ? selectedChannel as VisibleChannelType : "whatsapp";
   const currentChannel = normalizeChannelSettings(selectedVisibleChannel, draft.channels[selectedVisibleChannel]);
+  const operations = normalizeOperations(draft);
+  const updateOperations = (patch: Partial<Assistant["operations"]>) => {
+    setDraft({ ...draft, operations: { ...operations, ...patch } });
+  };
 
   return (
     <div className="settings-shell">
@@ -2216,6 +2257,32 @@ function SettingsView(props: {
             <input value={draft.referenceAssistantId} onChange={(event) => setDraft({ ...draft, referenceAssistantId: event.target.value })} placeholder="UUID de otro asistente" />
             {uuidError && <small className="field-error">El formato del identificador es incorrecto</small>}
             <small>Este campo permite usar la configuración de otro asistente como referencia para replicar plantillas, etiquetas, disparadores, entrenamiento u otras configuraciones.</small>
+          </Field>
+          <Field label="Resumen por WhatsApp">
+            <label className="check-row"><input type="checkbox" checked={operations.summaryEnabled} onChange={(event) => updateOperations({ summaryEnabled: event.target.checked })} /> Enviar resumen automatico al responsable</label>
+          </Field>
+          <div className="field-row">
+            <Field label="WhatsApp responsable">
+              <input value={operations.ownerWhatsAppNumber} onChange={(event) => updateOperations({ ownerWhatsAppNumber: event.target.value })} placeholder="573001112233" />
+            </Field>
+            <Field label="Cada cuantas horas">
+              <input type="number" min="1" value={operations.summaryIntervalHours} onChange={(event) => updateOperations({ summaryIntervalHours: Number(event.target.value) })} />
+            </Field>
+          </div>
+          <Field label="Remarketing">
+            <label className="check-row"><input type="checkbox" checked={operations.remarketingEnabled} onChange={(event) => updateOperations({ remarketingEnabled: event.target.checked })} /> Reactivar conversaciones sin cierre</label>
+          </Field>
+          <div className="field-row">
+            <Field label="Enviar despues de horas">
+              <input type="number" min="1" value={operations.remarketingDelayHours} onChange={(event) => updateOperations({ remarketingDelayHours: Number(event.target.value) })} />
+            </Field>
+            <Field label="Sitio web">
+              <input value={operations.remarketingWebsiteUrl} onChange={(event) => updateOperations({ remarketingWebsiteUrl: event.target.value })} placeholder="https://k1n0.dev" />
+            </Field>
+          </div>
+          <Field label="Mensaje remarketing">
+            <textarea value={operations.remarketingMessage} onChange={(event) => updateOperations({ remarketingMessage: event.target.value })} />
+            <small>Magnet agrega el sitio web si el texto no lo incluye. Se envia una vez por conversacion.</small>
           </Field>
         </Panel>
       )}
