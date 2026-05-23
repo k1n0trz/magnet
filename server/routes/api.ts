@@ -2,10 +2,11 @@ import { Router, type NextFunction, type Request, type Response } from "express"
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
+import { decryptSecret } from "../lib/crypto";
 import { isValidReferenceAssistantId } from "../lib/validation";
 import { generateAssistantReply } from "../services/ai";
 import { sendWhatsAppText } from "../services/whatsapp";
-import type { MessagePackage, Store, User } from "../types";
+import type { Assistant, ChannelSettings, MessagePackage, Store, User } from "../types";
 
 interface RuntimeStatus {
   persistence: "memory" | "mongo";
@@ -328,6 +329,11 @@ export function apiRouter(store: Store, runtime: RuntimeStatus) {
       res.status(404).json({ error: "Assistant not found" });
       return;
     }
+    const validation = await validateWhatsAppChannelPatch(current, req.body);
+    if (!validation.ok) {
+      res.status(400).json({ error: validation.error });
+      return;
+    }
     const assistant = await store.updateAssistant(assistantId, req.body);
     res.json(assistant);
   });
@@ -628,6 +634,69 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
 
 function isAdmin(user: User) {
   return ["admin", "superadmin"].includes(user.role);
+}
+
+async function validateWhatsAppChannelPatch(current: Assistant, patch: Partial<Assistant>) {
+  const incoming = patch.channels?.whatsapp;
+  if (!incoming) return { ok: true };
+
+  const channel: ChannelSettings = {
+    ...current.channels.whatsapp,
+    ...incoming,
+    credentials: {
+      ...current.channels.whatsapp.credentials,
+      ...incoming.credentials
+    }
+  };
+
+  const tokenValue = channel.credentials.permanentAccessTokenEncrypted || "";
+  const phoneNumberId = channel.credentials.phoneNumberId || "";
+  const touchedCredentials = Boolean(tokenValue || phoneNumberId);
+
+  if (!channel.enabled || !touchedCredentials) return { ok: true };
+  if (!tokenValue || !phoneNumberId) {
+    return { ok: false, error: "Para activar WhatsApp necesitas guardar el ID numero de telefono y un token de acceso de Meta." };
+  }
+
+  let token = "";
+  try {
+    token = decryptSecret(tokenValue);
+  } catch {
+    return { ok: false, error: "No se pudo leer el token de WhatsApp guardado. Pega nuevamente el token de acceso de Meta." };
+  }
+
+  const version = process.env.META_GRAPH_VERSION || "v22.0";
+  try {
+    const response = await fetch(
+      `https://graph.facebook.com/${version}/${encodeURIComponent(phoneNumberId)}?fields=id,display_phone_number,verified_name`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    if (response.ok) return { ok: true };
+
+    const error = await readMetaValidationError(response);
+    return {
+      ok: false,
+      error: `No se pudo validar WhatsApp con Meta. Revisa que el token pertenezca al mismo WABA y phone_number_id. Meta respondio ${response.status}${error ? `: ${error}` : "."}`
+    };
+  } catch {
+    return { ok: false, error: "No se pudo conectar con Meta para validar WhatsApp. Intenta guardar nuevamente en unos segundos." };
+  }
+}
+
+async function readMetaValidationError(response: globalThis.Response) {
+  try {
+    const data = await response.json() as { error?: { message?: string; code?: number; error_subcode?: number; fbtrace_id?: string } };
+    const error = data.error;
+    if (!error?.message) return "";
+    const parts = [error.message];
+    if (error.code) parts.push(`code ${error.code}`);
+    if (error.error_subcode) parts.push(`subcode ${error.error_subcode}`);
+    if (error.fbtrace_id) parts.push(`trace ${error.fbtrace_id}`);
+    return parts.join(" | ");
+  } catch {
+    return "";
+  }
 }
 
 function canAccessAssistant(user: User, organizationId: string) {

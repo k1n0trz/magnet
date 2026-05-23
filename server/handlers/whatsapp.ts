@@ -74,7 +74,8 @@ export function createWhatsAppHandler(): ChannelHandler {
         });
 
         if (!response.ok) {
-          return { messageId: "", error: `Meta API error: ${response.status}` };
+          const error = await readMetaError(response);
+          return { messageId: "", error: `Meta API error: ${response.status}${error ? ` - ${error}` : ""}` };
         }
 
         const data = (await response.json()) as { messages?: Array<{ id: string }> };
@@ -88,4 +89,19 @@ export function createWhatsAppHandler(): ChannelHandler {
 
 function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
+}
+
+async function readMetaError(response: Response) {
+  try {
+    const data = await response.json() as { error?: { message?: string; code?: number; error_subcode?: number; fbtrace_id?: string } };
+    const error = data.error;
+    if (!error?.message) return "";
+    const parts = [error.message];
+    if (error.code) parts.push(`code ${error.code}`);
+    if (error.error_subcode) parts.push(`subcode ${error.error_subcode}`);
+    if (error.fbtrace_id) parts.push(`trace ${error.fbtrace_id}`);
+    return parts.join(" | ");
+  } catch {
+    return "";
+  }
 }

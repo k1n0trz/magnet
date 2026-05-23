@@ -1,9 +1,13 @@
 import request from "supertest";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../app";
 import { createMemoryStore } from "../store/memoryStore";
 
 describe("auth and billing", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("registers a user with 100 free messages", async () => {
     const app = createApp({ store: createMemoryStore(false) });
     const response = await request(app)
@@ -96,5 +100,52 @@ describe("auth and billing", () => {
 
     expect(response.status).toBe(302);
     expect(response.headers.location).toBe("https://app.magnetcloud.app/chat");
+  });
+
+  it("rejects WhatsApp settings when Meta cannot access the phone number", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({
+        error: {
+          message: "Unsupported get request",
+          code: 100,
+          error_subcode: 33,
+          fbtrace_id: "trace-id"
+        }
+      })
+    } as Response);
+
+    const store = createMemoryStore(false);
+    const app = createApp({ store });
+    const register = await request(app)
+      .post("/api/auth/register")
+      .send({ name: "Nuevo User", email: "nuevo@example.com", password: "password-seguro" });
+    const assistant = await store.createAssistant({
+      organizationId: register.body.user.organizationId,
+      name: "Ventas",
+      countryCode: "CO +57",
+      phone: "3010000000"
+    });
+
+    const response = await request(app)
+      .patch(`/api/assistants/${assistant.id}`)
+      .set("Authorization", `Bearer ${register.body.token}`)
+      .send({
+        channels: {
+          whatsapp: {
+            ...assistant.channels.whatsapp,
+            enabled: true,
+            credentials: {
+              permanentAccessTokenEncrypted: "EAAX-token",
+              phoneNumberId: "1092552667278358"
+            }
+          }
+        }
+      });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toContain("No se pudo validar WhatsApp con Meta");
+    expect(response.body.error).toContain("Unsupported get request");
   });
 });
