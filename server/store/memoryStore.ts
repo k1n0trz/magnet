@@ -137,8 +137,8 @@ export function buildAssistant(input: Partial<Assistant>): Assistant {
       responseDelaySeconds: input.ai?.responseDelaySeconds ?? 30,
       textResponseProbability: input.ai?.textResponseProbability ?? 80,
       audioResponseProbability: input.ai?.audioResponseProbability ?? 20,
-      modelProvider: input.ai?.modelProvider || "local",
-      modelName: input.ai?.modelName || "magnet-local",
+      modelProvider: input.ai?.modelProvider || defaultModelProvider(),
+      modelName: input.ai?.modelName || defaultModelName(),
       temperature: input.ai?.temperature ?? 0.6,
       maxTokens: input.ai?.maxTokens ?? 700,
       personality: input.ai?.personality || "Consultivo, directo y orientado a venta",
@@ -156,6 +156,18 @@ export function buildAssistant(input: Partial<Assistant>): Assistant {
     },
     channels: buildChannels(id, input.channels)
   };
+}
+
+function defaultModelProvider(): Assistant["ai"]["modelProvider"] {
+  if (process.env.DEEPSEEK_API_KEY) return "deepseek";
+  if (process.env.OPENAI_API_KEY) return "openai";
+  return "local";
+}
+
+function defaultModelName() {
+  if (process.env.DEEPSEEK_API_KEY) return process.env.DEEPSEEK_MODEL || "deepseek-chat";
+  if (process.env.OPENAI_API_KEY) return process.env.OPENAI_MODEL || "gpt-4o-mini";
+  return "magnet-local";
 }
 
 export function createMemoryStore(seed = false): Store {

@@ -37,33 +37,67 @@ async function tryRemoteProvider(assistant: Assistant, inboundText: string, hist
   const apiKey = providerKey(assistant.ai.modelProvider);
   if (!apiKey) return "";
   const context = history.slice(-8).map((message) => `${message.sender}: ${message.text}`).join("\n");
+  const productContext = products.length
+    ? `\nProductos y servicios disponibles:\n${products.map((product) => `- ${product.name}: ${product.description}${product.price ? ` Precio: ${product.currency} ${product.price}` : ""}`).join("\n")}`
+    : "";
+  const messages = [
+    { role: "system", content: `${assistant.prompt}\n${assistant.ai.systemRules}${productContext}` },
+    { role: "user", content: `${context}\nCliente: ${inboundText}` }
+  ];
 
   if (assistant.ai.modelProvider === "openai") {
-    const productContext = products.length
-      ? `\nProductos y servicios disponibles:\n${products.map((product) => `- ${product.name}: ${product.description}${product.price ? ` Precio: ${product.currency} ${product.price}` : ""}`).join("\n")}`
-      : "";
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    return requestChatCompletion({
+      url: "https://api.openai.com/v1/chat/completions",
+      apiKey,
+      model: assistant.ai.modelName || "gpt-4o-mini",
+      temperature: assistant.ai.temperature,
+      maxTokens: assistant.ai.maxTokens,
+      messages
+    });
+  }
+
+  if (assistant.ai.modelProvider === "deepseek") {
+    return requestChatCompletion({
+      url: "https://api.deepseek.com/chat/completions",
+      apiKey,
+      model: assistant.ai.modelName || process.env.DEEPSEEK_MODEL || "deepseek-chat",
+      temperature: assistant.ai.temperature,
+      maxTokens: assistant.ai.maxTokens,
+      messages
+    });
+  }
+
+  return "";
+}
+
+async function requestChatCompletion(args: {
+  url: string;
+  apiKey: string;
+  model: string;
+  temperature: number;
+  maxTokens: number;
+  messages: Array<{ role: string; content: string }>;
+}) {
+  try {
+    const response = await fetch(args.url, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${args.apiKey}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: assistant.ai.modelName || "gpt-4o-mini",
-        temperature: assistant.ai.temperature,
-        max_tokens: assistant.ai.maxTokens,
-        messages: [
-          { role: "system", content: `${assistant.prompt}\n${assistant.ai.systemRules}${productContext}` },
-          { role: "user", content: `${context}\nCliente: ${inboundText}` }
-        ]
+        model: args.model,
+        temperature: args.temperature,
+        max_tokens: args.maxTokens,
+        messages: args.messages
       })
     });
     if (!response.ok) return "";
     const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
     return data.choices?.[0]?.message?.content || "";
+  } catch {
+    return "";
   }
-
-  return "";
 }
 
 function findRelevantProduct(inboundText: string, products: ProductService[]) {
