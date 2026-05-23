@@ -4,3 +4,7 @@ dist/
 .env
 npm-debug.log
 *.local
+.incoming/
+.local-backups/
+qa-*.png
+preview.*.log
