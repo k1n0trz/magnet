@@ -22,15 +22,24 @@ export async function generateAssistantReply({ assistant, inboundText, history, 
     if (remote) return remote;
   }
 
-  const lastUserIntent = inboundText.length > 110 ? `${inboundText.slice(0, 107)}...` : inboundText;
-  const triggerLine = triggerHint ? ` Detecte el disparador ${triggerHint.name}; voy a ayudarte con ese paso.` : "";
   const productHint = findRelevantProduct(inboundText, products);
-  const productLine = productHint
-    ? ` Tenemos en cuenta ${productHint.name}${productHint.price ? ` (${productHint.currency} ${productHint.price})` : ""}: ${productHint.description.slice(0, 140)}.`
-    : products.length
-      ? ` Puedo orientarte sobre ${products.slice(0, 3).map((product) => product.name).join(", ")}.`
-      : "";
-  return `Hola, gracias por escribir a ${assistant.name}. Entiendo: "${lastUserIntent}".${triggerLine}${productLine} Me confirmas tu nombre y el producto o servicio que te interesa para avanzar?`;
+  const triggerLine = triggerHint ? ` Veo que esto va por ${humanizeTrigger(triggerHint.name)}, asi que te ayudo con ese paso.` : "";
+
+  if (productHint) {
+    const price = productHint.price ? ` El valor es ${productHint.currency} ${productHint.price}.` : "";
+    return `Claro. ${assistant.name} ofrece ${productHint.name}: ${productHint.description.slice(0, 170)}.${price}${triggerLine} Te cuento mas detalles o prefieres que avancemos con una asesoria?`;
+  }
+
+  if (products.length) {
+    const names = products.slice(0, 3).map((product) => product.name).join(", ");
+    return `Claro, te cuento. En ${assistant.name} podemos ayudarte con ${names}.${triggerLine} Cual de estos servicios te interesa revisar primero?`;
+  }
+
+  if (history.length > 2) {
+    return `Si, seguimos por aqui. Para ayudarte mejor, cuentame que quieres resolver ahora y avanzamos paso a paso.`;
+  }
+
+  return `Hola, gracias por escribir a ${assistant.name}.${triggerLine} Cuentame que necesitas y te ayudo a elegir el siguiente paso.`;
 }
 
 async function tryRemoteProvider(assistant: Assistant, inboundText: string, history: Message[], products: ProductService[]) {
@@ -41,7 +50,7 @@ async function tryRemoteProvider(assistant: Assistant, inboundText: string, hist
     ? `\nProductos y servicios disponibles:\n${products.map((product) => `- ${product.name}: ${product.description}${product.price ? ` Precio: ${product.currency} ${product.price}` : ""}`).join("\n")}`
     : "";
   const messages = [
-    { role: "system", content: `${assistant.prompt}\n${assistant.ai.systemRules}${productContext}` },
+    { role: "system", content: `${assistant.prompt}\n${assistant.ai.systemRules}\nResponde como una persona atenta: natural, breve y especifica. No repitas literalmente el mensaje del cliente, no uses plantillas visibles y haz maximo una pregunta clara al final.${productContext}` },
     { role: "user", content: `${context}\nCliente: ${inboundText}` }
   ];
 
@@ -106,6 +115,10 @@ function findRelevantProduct(inboundText: string, products: ProductService[]) {
     const words = product.name.toLowerCase().split(/\s+/).filter((word) => word.length > 3);
     return words.some((word) => normalized.includes(word));
   });
+}
+
+function humanizeTrigger(name: string) {
+  return name.replace(/_/g, " ");
 }
 
 function providerKey(provider: Assistant["ai"]["modelProvider"]) {

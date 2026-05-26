@@ -10,5 +10,6 @@ dist
 .DS_Store
 .incoming
 .local-backups
+data
 qa-*.png
 preview.*.log

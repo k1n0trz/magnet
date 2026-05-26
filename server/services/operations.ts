@@ -115,6 +115,7 @@ function withOperationDefaults(assistant: Assistant) {
     summaryEnabled: assistant.operations?.summaryEnabled ?? false,
     summaryIntervalHours: assistant.operations?.summaryIntervalHours ?? 6,
     lastSummaryAt: assistant.operations?.lastSummaryAt || "",
+    newConversationAlertsEnabled: assistant.operations?.newConversationAlertsEnabled ?? true,
     remarketingEnabled: assistant.operations?.remarketingEnabled ?? false,
     remarketingDelayHours: assistant.operations?.remarketingDelayHours ?? 24,
     remarketingWebsiteUrl: assistant.operations?.remarketingWebsiteUrl || "",

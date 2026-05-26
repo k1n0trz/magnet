@@ -1,5 +1,5 @@
 import { v4 as uuid } from "uuid";
-import { encryptSecret, maskSecret, randomToken } from "../lib/crypto";
+import { encryptSecret, randomToken } from "../lib/crypto";
 import type {
   Assistant,
   ChannelSettings,
@@ -159,6 +159,7 @@ export function buildAssistant(input: Partial<Assistant>): Assistant {
       summaryEnabled: input.operations?.summaryEnabled ?? false,
       summaryIntervalHours: input.operations?.summaryIntervalHours ?? 6,
       lastSummaryAt: input.operations?.lastSummaryAt || "",
+      newConversationAlertsEnabled: input.operations?.newConversationAlertsEnabled ?? true,
       remarketingEnabled: input.operations?.remarketingEnabled ?? false,
       remarketingDelayHours: input.operations?.remarketingDelayHours ?? 24,
       remarketingWebsiteUrl: input.operations?.remarketingWebsiteUrl || "",
@@ -228,6 +229,11 @@ export function createMemoryStore(seed = false): Store {
         organizationId: input.organizationId,
         name: input.name,
         email,
+        phone: input.phone || "",
+        avatarUrl: input.avatarUrl || "",
+        companyName: input.companyName || "",
+        taxId: input.taxId || "",
+        theme: input.theme || "light",
         passwordHash: input.passwordHash || "",
         role: input.role || "user",
         provider: input.provider || "email",
@@ -360,6 +366,7 @@ export function createMemoryStore(seed = false): Store {
         email: input.email || "",
         source: input.source || "WhatsApp",
         tags: input.tags || [],
+        referral: input.referral,
         leadScore: input.leadScore ?? 45,
         status: input.status || "Nuevo",
         lastMessageAt: input.lastMessageAt || now(),
@@ -367,6 +374,12 @@ export function createMemoryStore(seed = false): Store {
         updatedAt: now()
       };
       contacts.push(contact);
+      return contact;
+    },
+    async updateContact(id, patch) {
+      const contact = contacts.find((item) => item.id === id);
+      if (!contact) throw new Error("Contact not found");
+      Object.assign(contact, patch, { updatedAt: now() });
       return contact;
     },
     async listContacts(assistantId) {
@@ -388,10 +401,17 @@ export function createMemoryStore(seed = false): Store {
         lastMessage: input.lastMessage || "",
         lastMessageAt: input.lastMessageAt || now(),
         tags: input.tags || [],
+        referral: input.referral,
         createdAt: now(),
         updatedAt: now()
       };
       conversations.push(conversation);
+      return conversation;
+    },
+    async updateConversation(id, patch) {
+      const conversation = conversations.find((item) => item.id === id);
+      if (!conversation) throw new Error("Conversation not found");
+      Object.assign(conversation, patch, { updatedAt: now() });
       return conversation;
     },
     async listConversations(assistantId) {

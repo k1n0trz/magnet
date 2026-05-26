@@ -27,6 +27,7 @@ export function createWhatsAppHandler(): ChannelHandler {
           const msgs = asArray(value.messages) as any[];
 
           for (const msg of msgs) {
+            const media = mediaFromMessage(msg);
             messages.push({
               messageId: msg.id,
               from: msg.from,
@@ -34,7 +35,10 @@ export function createWhatsAppHandler(): ChannelHandler {
               timestamp: Number(msg.timestamp) || Date.now() / 1000,
               type: msg.type || "text",
               text: msg.text?.body,
-              mediaUrl: ""
+              mediaUrl: media.url,
+              mediaId: media.id,
+              mediaMimeType: media.mimeType,
+              referral: normalizeReferral(msg.referral)
             });
           }
         }
@@ -89,6 +93,30 @@ export function createWhatsAppHandler(): ChannelHandler {
 
 function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
+}
+
+function mediaFromMessage(msg: any) {
+  const media = msg.audio || msg.image || msg.document || msg.video || msg.sticker || {};
+  return {
+    id: typeof media.id === "string" ? media.id : "",
+    url: typeof media.url === "string" ? media.url : "",
+    mimeType: typeof media.mime_type === "string" ? media.mime_type : ""
+  };
+}
+
+function normalizeReferral(referral: any) {
+  if (!referral || typeof referral !== "object") return undefined;
+  return {
+    sourceType: String(referral.source_type || ""),
+    sourceId: String(referral.source_id || ""),
+    sourceUrl: String(referral.source_url || ""),
+    headline: String(referral.headline || ""),
+    body: String(referral.body || ""),
+    mediaType: String(referral.media_type || ""),
+    imageUrl: String(referral.image_url || ""),
+    videoUrl: String(referral.video_url || ""),
+    thumbnailUrl: String(referral.thumbnail_url || "")
+  };
 }
 
 async function readMetaError(response: Response) {

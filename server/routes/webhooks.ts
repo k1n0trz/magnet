@@ -1,7 +1,11 @@
 import { Router, type Request, type Response } from "express";
 import { generateAssistantReply } from "../services/ai";
+import { sendWhatsAppAudio, transcribeWhatsAppAudio } from "../services/audio";
+import { notifyNewConversation } from "../services/notifications";
 import type { HandlerRegistry } from "../handlers";
 import type { ChannelType, Message, Store } from "../types";
+
+const temporarilyUnavailableChannels = new Set<ChannelType>(["instagram", "messenger", "wordpress"]);
 
 export function webhooksRouter(store: Store, handlers: HandlerRegistry) {
   const router = Router();
@@ -19,6 +23,11 @@ export function webhooksRouter(store: Store, handlers: HandlerRegistry) {
 
     if (!assistant) {
       res.status(404).json({ error: "Assistant not found" });
+      return;
+    }
+
+    if (temporarilyUnavailableChannels.has(channel)) {
+      res.status(423).json({ error: "Disponible proximamente" });
       return;
     }
 
@@ -59,6 +68,11 @@ export function webhooksRouter(store: Store, handlers: HandlerRegistry) {
         return;
       }
 
+      if (temporarilyUnavailableChannels.has(channel)) {
+        res.status(423).json({ error: "Disponible proximamente" });
+        return;
+      }
+
       const settings = assistant.channels[channel];
       if (!settings || !settings.enabled) {
         res.status(404).json({ error: "Channel not configured or disabled" });
@@ -88,53 +102,71 @@ export function webhooksRouter(store: Store, handlers: HandlerRegistry) {
       }
 
       for (const inbound of messages) {
+        const inboundMediaUrl = inbound.mediaUrl || (inbound.mediaId ? `/api/media/whatsapp/${assistant.id}/${encodeURIComponent(inbound.mediaId)}` : "");
+        const inboundText = inbound.type === "audio" && inbound.mediaId && assistant.ai.transcribeIncomingAudio
+          ? (await transcribeWhatsAppAudio(settings, inbound.mediaId)) || ""
+          : inbound.text || "";
+        const conversationText = inboundText || `[${inbound.type}]`;
         const contact = await store.upsertContact({
           assistantId: assistant.id,
           name: inbound.profileName || inbound.from,
           phone: inbound.from,
-          source: channel.toUpperCase(),
-          tags: ["nuevo_lead"],
+          source: inbound.referral ? "Meta Ads" : channel.toUpperCase(),
+          tags: inbound.referral ? ["nuevo_lead", "meta_ads"] : ["nuevo_lead"],
+          referral: inbound.referral,
           lastMessageAt: new Date(inbound.timestamp * 1000).toISOString()
         });
+        const existingConversation = (await store.listConversations(assistant.id)).find((item) => item.contactId === contact.id);
+        const isNewConversation = !existingConversation;
 
         const conversation = await store.upsertConversation({
           assistantId: assistant.id,
           contactId: contact.id,
-          lastMessage: inbound.text || `[${inbound.type}]`,
+          lastMessage: conversationText,
           lastMessageAt: contact.lastMessageAt,
           tags: contact.tags.length ? contact.tags : ["nuevo_lead"],
+          referral: inbound.referral,
           botEnabled: true
         });
 
-        await store.addMessage({
+        const inboundMessage = await store.addMessage({
           assistantId: assistant.id,
           conversationId: conversation.id,
           contactId: contact.id,
           direction: "inbound",
           sender: "customer",
           type: inbound.type,
-          text: inbound.text || "",
-          mediaUrl: inbound.mediaUrl || "",
+          text: inboundText,
+          mediaUrl: inboundMediaUrl,
+          mediaId: inbound.mediaId || "",
+          mediaMimeType: inbound.mediaMimeType || "",
+          referral: inbound.referral,
           channel,
           channelMessageId: inbound.messageId,
           status: "received",
           timestamp: new Date(inbound.timestamp * 1000).toISOString()
         });
 
+        if (isNewConversation) {
+          await notifyNewConversation(store, assistant, conversation, contact, inboundMessage);
+        }
+
         if (assistant.status === "active" && assistant.ai.status === "active" && conversation.botEnabled) {
-          const credit = await store.consumeCredits({
-            organizationId: assistant.organizationId,
-            amount: 1,
-            description: "AI WhatsApp response",
-            metadata: { assistantId: assistant.id, conversationId: conversation.id, channel }
-          });
+          const credit = isNewConversation
+            ? await store.consumeCredits({
+                organizationId: assistant.organizationId,
+                amount: 1,
+                description: "AI conversation",
+                metadata: { assistantId: assistant.id, conversationId: conversation.id, channel }
+              })
+            : { id: "already-charged" };
 
           if (!credit) {
             await store.addEvent({
               assistantId: assistant.id,
               contactId: contact.id,
               conversationId: conversation.id,
-              type: "message_credit_exhausted",
+              type: "conversation_credit_exhausted",
               payload: { channel }
             });
             continue;
@@ -144,12 +176,15 @@ export function webhooksRouter(store: Store, handlers: HandlerRegistry) {
           const triggers = await store.listTriggers(assistant.id);
           const reply = await generateAssistantReply({
             assistant,
-            inboundText: inbound.text || "",
+            inboundText: conversationText,
             history,
             triggers
           });
 
-          const sent = await handler.sendMessage(settings, inbound.from, reply);
+          const shouldReplyWithAudio = inbound.type === "audio" && assistant.ai.audioEnabled;
+          const sent = shouldReplyWithAudio
+            ? await sendWhatsAppAudio(assistant, inbound.from, reply)
+            : await handler.sendMessage(settings, inbound.from, reply);
 
           await store.addMessage({
             assistantId: assistant.id,
@@ -157,7 +192,7 @@ export function webhooksRouter(store: Store, handlers: HandlerRegistry) {
             contactId: contact.id,
             direction: "outbound",
             sender: "assistant",
-            type: "text",
+            type: shouldReplyWithAudio ? "audio" : "text",
             text: reply,
             mediaUrl: "",
             channel,

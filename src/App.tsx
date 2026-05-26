@@ -10,6 +10,7 @@ import {
   Clipboard,
   Copy,
   CreditCard,
+  Download,
   Edit3,
   Filter,
   Flame,
@@ -84,6 +85,18 @@ interface ChannelSettings {
   updatedAt: string;
 }
 
+interface MetaReferral {
+  sourceType: string;
+  sourceId: string;
+  sourceUrl: string;
+  headline: string;
+  body: string;
+  mediaType: string;
+  imageUrl: string;
+  videoUrl: string;
+  thumbnailUrl: string;
+}
+
 interface Assistant {
   id: string;
   name: string;
@@ -122,6 +135,7 @@ interface Assistant {
     summaryEnabled: boolean;
     summaryIntervalHours: number;
     lastSummaryAt: string;
+    newConversationAlertsEnabled: boolean;
     remarketingEnabled: boolean;
     remarketingDelayHours: number;
     remarketingWebsiteUrl: string;
@@ -139,6 +153,7 @@ interface Contact {
   email: string;
   source: string;
   tags: string[];
+  referral?: MetaReferral;
   leadScore: number;
   status: LeadStatus;
   lastMessageAt: string;
@@ -154,6 +169,7 @@ interface Conversation {
   lastMessage: string;
   lastMessageAt: string;
   tags: string[];
+  referral?: MetaReferral;
 }
 
 interface Message {
@@ -163,7 +179,12 @@ interface Message {
   contactId: string;
   direction: "inbound" | "outbound";
   sender: "customer" | "assistant" | "human";
+  type?: "text" | "audio" | "image" | "document" | "note";
   text: string;
+  mediaUrl?: string;
+  mediaId?: string;
+  mediaMimeType?: string;
+  referral?: MetaReferral;
   status: string;
   timestamp: string;
   channel?: ChannelType;
@@ -208,6 +229,11 @@ interface AccountUser {
   organizationId: string;
   name: string;
   email: string;
+  phone: string;
+  avatarUrl: string;
+  companyName: string;
+  taxId: string;
+  theme: "dark" | "light";
   role: "user" | "admin" | "superadmin";
   provider: string;
   emailVerified: boolean;
@@ -239,6 +265,7 @@ interface MessagePackage {
   id: string;
   name: string;
   messages: number;
+  priceUsd: number;
   priceCop: number;
   currency: "COP";
 }
@@ -310,12 +337,23 @@ const leadStatuses: LeadStatus[] = [
 ];
 
 const visibleChannelTypes: VisibleChannelType[] = ["whatsapp", "instagram", "messenger", "wordpress"];
+const temporarilyUnavailableChannelTypes = new Set<VisibleChannelType>(["instagram", "messenger", "wordpress"]);
 const channelMeta: Record<VisibleChannelType, { label: string; shortLabel: string; icon: string; description: string }> = {
   whatsapp: { label: "WhatsApp", shortLabel: "WhatsApp", icon: "/img/icon-whatsapp.png", description: "Mensajes de WhatsApp Cloud API" },
   instagram: { label: "Instagram", shortLabel: "Instagram", icon: "/img/instagram.png", description: "Mensajes directos de Instagram" },
   messenger: { label: "Messenger", shortLabel: "Messenger", icon: "/img/messenger.png", description: "Mensajes de Facebook Messenger" },
   wordpress: { label: "Web / WordPress", shortLabel: "Web", icon: "/img/crm-api.png", description: "Formularios web, WordPress o WooCommerce" }
 };
+
+const voiceOptions = [
+  { value: "nova", label: "Femenina clara - Nova" },
+  { value: "shimmer", label: "Femenina suave - Shimmer" },
+  { value: "coral", label: "Femenina cálida - Coral" },
+  { value: "onyx", label: "Masculina profunda - Onyx" },
+  { value: "echo", label: "Masculina directa - Echo" },
+  { value: "ash", label: "Masculina natural - Ash" },
+  { value: "alloy", label: "Neutra versátil - Alloy" }
+];
 
 function normalizeChannelSettings(channelId: VisibleChannelType, channel?: ChannelSettings): ChannelSettings {
   return {
@@ -336,11 +374,20 @@ function normalizeOperations(assistant: Assistant) {
     summaryEnabled: assistant.operations?.summaryEnabled ?? false,
     summaryIntervalHours: assistant.operations?.summaryIntervalHours ?? 6,
     lastSummaryAt: assistant.operations?.lastSummaryAt || "",
+    newConversationAlertsEnabled: assistant.operations?.newConversationAlertsEnabled ?? true,
     remarketingEnabled: assistant.operations?.remarketingEnabled ?? false,
     remarketingDelayHours: assistant.operations?.remarketingDelayHours ?? 24,
     remarketingWebsiteUrl: assistant.operations?.remarketingWebsiteUrl || "https://k1n0.dev",
     remarketingMessage: assistant.operations?.remarketingMessage || "Hola, queria retomar nuestra conversacion. Si aun te interesa, podemos avanzar con los datos de tu empresa."
   };
+}
+
+function shouldOpenConversationByDefault() {
+  return typeof window === "undefined" || !window.matchMedia("(max-width: 1100px)").matches;
+}
+
+function shouldToggleConversationAccordion() {
+  return typeof window !== "undefined" && window.matchMedia("(max-width: 1100px)").matches;
 }
 
 type AuthMode = "login" | "register";
@@ -523,10 +570,11 @@ function LandingPage() {
     [BarChart3, "Cierra más ventas", "Tu equipo sigue el pipeline y convierte más cada día."]
   ] as const;
   const integrations = [
-    ["/img/icon-whatsapp.png", "WhatsApp", "Conecta tu número en minutos."],
-    ["/img/messenger.png", "Messenger", "Responde desde un solo inbox."],
-    ["/img/instagram.png", "Instagram", "Mensajes y comentarios en un solo lugar."],
-    ["/img/crm-api.png", "CRM / API", "Conecta tu CRM y herramientas."]
+    ["/img/icon-whatsapp.png", "WhatsApp", "Conecta tu número en minutos.", false],
+    ["/img/messenger.png", "Messenger", "Disponible proximamente.", true],
+    ["/img/instagram.png", "Instagram", "Disponible proximamente.", true],
+    ["/img/crm-api.png", "WordPress", "Disponible proximamente.", true],
+    ["/img/crm-api.png", "Shopify", "Disponible proximamente.", true]
   ] as const;
   const prices = [
     ["Gratis", "100", "Conversaciones gratis desde el registro", "$0"],
@@ -619,8 +667,12 @@ function LandingPage() {
         <section className="integrations" id="integraciones">
           <h2>Integraciones que te conectan</h2>
           <div>
-            {integrations.map(([src, title, text]) => (
-              <article key={title}><img src={src} alt="" aria-hidden="true" /><span><strong>{title}</strong><small>{text}</small></span></article>
+            {integrations.map(([src, title, text, unavailable]) => (
+              <article className={unavailable ? "is-upcoming" : ""} key={title}>
+                <img src={src} alt="" aria-hidden="true" />
+                <span><strong>{title}</strong><small>{text}</small></span>
+                {unavailable && <em>Disponible proximamente</em>}
+              </article>
             ))}
           </div>
         </section>
@@ -813,7 +865,7 @@ function AuthPage({ initialMode }: { initialMode: AuthMode }) {
         <div>
           <span className="eyebrow"><ShieldCheck size={16} /> Acceso protegido</span>
           <h1>{mode === "register" ? "Crea tu cuenta Magnet" : "Ingresa a Magnet"}</h1>
-          <p>{mode === "register" ? "Recibe 100 mensajes gratis para probar tu primer agente de ventas con IA." : "Accede a tu inbox, asistentes, creditos y configuracion."}</p>
+          <p>{mode === "register" ? "Recibe 100 conversaciones gratis para probar tu primer agente de ventas con IA." : "Accede a tu inbox, asistentes, creditos y configuracion."}</p>
         </div>
         {mode === "register" && <Field label="Nombre"><input value={name} onChange={(event) => setName(event.target.value)} /></Field>}
         {mode === "register" && <Field label="Empresa"><input value={organizationName} onChange={(event) => setOrganizationName(event.target.value)} /></Field>}
@@ -877,6 +929,7 @@ function ChannelSettingsForm(props: {
 }) {
   const { channel, onUpdate } = props;
   const credentials = channel.credentials || {};
+  const isTemporarilyUnavailable = temporarilyUnavailableChannelTypes.has(channel.channel as VisibleChannelType);
 
   const updateCredential = (key: string, value: string) => {
     onUpdate({ ...channel, credentials: { ...credentials, [key]: value } });
@@ -888,9 +941,14 @@ function ChannelSettingsForm(props: {
 
   return (
     <div className="form-grid">
+      {isTemporarilyUnavailable && (
+        <div className="info-banner unavailable-banner">
+          Disponible proximamente. Esta integracion esta bloqueada temporalmente para el lanzamiento.
+        </div>
+      )}
       <Field label="Estado del canal">
-        <button onClick={toggleEnabled} className={channel.enabled ? "primary" : "secondary"}>
-          {channel.enabled ? "✓ Activo" : "✗ Inactivo"}
+        <button onClick={toggleEnabled} className={channel.enabled ? "primary" : "secondary"} disabled={isTemporarilyUnavailable}>
+          {isTemporarilyUnavailable ? "Disponible proximamente" : channel.enabled ? "Activo" : "Inactivo"}
         </button>
       </Field>
 
@@ -931,7 +989,7 @@ function ChannelSettingsForm(props: {
         </>
       )}
 
-      {channel.channel === "instagram" && (
+      {channel.channel === "instagram" && !isTemporarilyUnavailable && (
         <>
           <Field label="ID cuenta Instagram">
             <input
@@ -975,7 +1033,7 @@ function ChannelSettingsForm(props: {
         </>
       )}
 
-      {channel.channel === "messenger" && (
+      {channel.channel === "messenger" && !isTemporarilyUnavailable && (
         <>
           <Field label="ID pagina Facebook">
             <input
@@ -1012,7 +1070,7 @@ function ChannelSettingsForm(props: {
         </>
       )}
 
-      {channel.channel === "wordpress" && (
+      {channel.channel === "wordpress" && !isTemporarilyUnavailable && (
         <Field label="Instrucciones">
           <p className="muted-text">
             Copia y pega este webhook en tu formulario de WordPress (Contact Form 7 u otro plugin):
@@ -1026,32 +1084,32 @@ function ChannelSettingsForm(props: {
         </Field>
       )}
 
-      <Field label="URL webhook">
+      {!isTemporarilyUnavailable && <Field label="URL webhook">
         <div className="copy-field">
           <input value={channel.webhookUrl} readOnly />
           <button onClick={() => copyWithAlert(channel.webhookUrl, "Webhook")}>
             <Copy size={17} />
           </button>
         </div>
-      </Field>
+      </Field>}
 
-      <Field label="Token de verificación">
+      {!isTemporarilyUnavailable && <Field label="Token de verificación">
         <div className="copy-field">
           <input value={channel.verifyToken} readOnly />
           <button onClick={() => copyWithAlert(channel.verifyToken, "Token de verificación")}>
             <Copy size={17} />
           </button>
         </div>
-      </Field>
+      </Field>}
 
-      <Field label="Webhook secret">
+      {!isTemporarilyUnavailable && <Field label="Webhook secret">
         <div className="copy-field">
           <input value={channel.webhookSecret} readOnly />
           <button onClick={() => copyWithAlert(channel.webhookSecret, "Webhook secret")}>
             <Copy size={17} />
           </button>
         </div>
-      </Field>
+      </Field>}
     </div>
   );
 }
@@ -1072,6 +1130,7 @@ const sectionSlugs: Record<string, string> = {
   Ajustes: "ajustes",
   Contactos: "contactos",
   Etiquetas: "etiquetas",
+  Perfil: "perfil",
   Admin: "admin"
 };
 const slugSections = Object.fromEntries(Object.entries(sectionSlugs).map(([sectionName, slug]) => [slug, sectionName]));
@@ -1123,7 +1182,7 @@ function MagnetPanel() {
     if (active) {
       setAssistantId(active.id);
       setPromptDraft(active.prompt);
-      setSelectedConversationId(payload.conversations[0]?.id || "");
+      setSelectedConversationId(shouldOpenConversationByDefault() ? payload.conversations[0]?.id || "" : "");
     } else {
       setAssistantId("");
       setPromptDraft("");
@@ -1167,7 +1226,7 @@ function MagnetPanel() {
   const templates = data?.templates || [];
   const tags = data?.tags || [];
   const products = data?.products || [];
-  const selectedConversation = conversations.find((conversation) => conversation.id === selectedConversationId) || conversations[0];
+  const selectedConversation = conversations.find((conversation) => conversation.id === selectedConversationId) || null;
   const selectedContact = contacts.find((contact) => contact.id === selectedConversation?.contactId);
   const conversationMessages = selectedConversation ? messages.filter((message) => message.conversationId === selectedConversation.id) : [];
 
@@ -1318,6 +1377,34 @@ function MagnetPanel() {
     await load(assistant.id);
   }
 
+  async function updateConversationCrm(conversationId: string, patch: Partial<Conversation>) {
+    if (!assistant) return;
+    const response = await authFetch(`/api/assistants/${assistant.id}/conversations/${conversationId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch)
+    });
+    if (!response.ok) {
+      window.alert("No se pudo guardar el cambio en la conversación.");
+      return;
+    }
+    await load(assistant.id);
+  }
+
+  async function saveProfile(patch: Partial<AccountUser>) {
+    const response = await authFetch("/api/me", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch)
+    });
+    if (!response.ok) {
+      window.alert("No se pudo guardar el perfil.");
+      return;
+    }
+    setAccount(await response.json() as AccountState);
+    window.alert("Perfil guardado correctamente.");
+  }
+
   async function authFetch(path: string, init: RequestInit = {}) {
     const token = localStorage.getItem("magnet_token");
     return fetch(path, {
@@ -1373,7 +1460,7 @@ function MagnetPanel() {
       <div className="empty-workspace">
         <a className="landing-logo" href="/"><LogoMark /></a>
         <Panel title="Crea tu primer asistente">
-          <p className="muted-text">Tu cuenta ya esta lista. Crea el primer agente para generar webhook, configurar WhatsApp y empezar a usar tus 100 mensajes gratis.</p>
+          <p className="muted-text">Tu cuenta ya esta lista. Crea el primer agente para generar webhook, configurar WhatsApp y empezar a usar tus 100 conversaciones gratis.</p>
           <div className="field-row">
             <Field label="Nombre del asistente"><input value={newAssistant.name} onChange={(event) => setNewAssistant({ ...newAssistant, name: event.target.value })} placeholder="Ventas Magnet" /></Field>
             <Field label="Telefono"><input value={newAssistant.phone} onChange={(event) => setNewAssistant({ ...newAssistant, phone: event.target.value })} placeholder="3015336792" /></Field>
@@ -1395,8 +1482,10 @@ function MagnetPanel() {
     setSidebarOpen(false);
   };
 
+  const themeClass = account?.user.theme === "dark" ? "theme-dark" : "theme-light";
+
   return (
-    <div className={`app-shell ${sidebarOpen ? "sidebar-open" : ""}`}>
+    <div className={`app-shell ${themeClass} ${sidebarOpen ? "sidebar-open" : ""}`}>
       <aside className="sidebar">
         <div className="sidebar-head">
           <div className="brand">
@@ -1434,14 +1523,13 @@ function MagnetPanel() {
           )}
         </nav>
 
-        <div className="profile-card">
-          <div className="avatar">{(account?.user.name || "M").slice(0, 1)}</div>
+        <button className="profile-card" onClick={() => selectSection("Perfil")}>
+          <div className="avatar">{account?.user.avatarUrl ? <img src={account.user.avatarUrl} alt="" /> : (account?.user.name || "M").slice(0, 1)}</div>
           <div><strong>{account?.user.name || "Magnet"}</strong><span>{account?.user.role || "Cuenta activa"}</span></div>
-          <ChevronDown size={16} />
-        </div>
+        </button>
 
         <div className="plan-card">
-          <strong>{account?.organization.messageCredits ?? 0} mensajes</strong>
+          <strong>{account?.organization.messageCredits ?? 0} conversaciones</strong>
           <span>{account?.organization.name || "Plan inicial"}</span>
           <div className="progress"><i style={{ width: `${Math.min(100, ((account?.organization.messageCredits ?? 0) / 100) * 100)}%` }} /></div>
           <button onClick={() => selectSection("Recarga / Créditos")}>Ver creditos</button>
@@ -1516,6 +1604,7 @@ function MagnetPanel() {
             setMessageText={setMessageText}
             setSelectedConversationId={setSelectedConversationId}
             onSend={sendManualMessage}
+            onUpdateConversation={updateConversationCrm}
           />
         )}
         {section === "Entrenamiento" && (
@@ -1534,10 +1623,11 @@ function MagnetPanel() {
         )}
         {section === "Disparadores" && <TriggersTable triggers={triggers} onSave={saveTrigger} onDelete={deleteTrigger} />}
         {section === "Plantillas" && <Templates templates={templates} onSave={saveTemplate} onDelete={deleteTemplate} />}
-        {section === "Contactos" && <Contacts contacts={contacts} tags={tags} />}
+        {section === "Contactos" && <Contacts assistantId={assistant.id} contacts={contacts} tags={tags} authFetch={authFetch} />}
         {section === "Etiquetas" && <TagsView tags={tags} onSave={saveTag} onDelete={deleteTag} />}
         {section === "Recarga / Créditos" && <Credits account={account} billing={billing} authFetch={authFetch} />}
         {section === "Logros / Métricas" && <Metrics conversations={conversations} contacts={contacts} messages={messages} />}
+        {section === "Perfil" && account && <ProfileView account={account} onSave={saveProfile} />}
         {section === "Admin" && <AdminView overview={adminOverview} onRefresh={loadAdminOverview} authFetch={authFetch} />}
         {section === "Ajustes" && (
           <SettingsView
@@ -1792,6 +1882,7 @@ function Chat(props: {
   setMessageText: (value: string) => void;
   setSelectedConversationId: (id: string) => void;
   onSend: () => void;
+  onUpdateConversation: (conversationId: string, patch: Partial<Conversation>) => void;
 }) {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<ConversationFilter>({
@@ -1805,8 +1896,55 @@ function Chat(props: {
   const selectedConversation = props.conversations.find((conversation) => conversation.id === props.selectedConversationId);
   const selectedMessages = props.messages;
   const selectedHasError = conversationNeedsReview(selectedMessages);
-  const selectedTags = uniqueDisplayTags([...(selectedConversation?.tags || []), ...(props.selectedContact?.tags || []), selectedConversation?.status || ""]).slice(0, 4);
+  const selectedTags = uniqueDisplayTags([...(selectedConversation?.tags || []), ...(props.selectedContact?.tags || [])]).slice(0, 4);
   const selectedWasHandledByBot = selectedConversation?.botEnabled || selectedMessages.some((message) => message.sender === "assistant");
+  const selectedReferral = selectedConversation?.referral || selectedMessages.find((message) => message.referral)?.referral;
+  const assignTag = (tagName: string) => {
+    if (!selectedConversation || !tagName) return;
+    props.onUpdateConversation(selectedConversation.id, { tags: uniqueDisplayTags([...(selectedConversation.tags || []), ...(props.selectedContact?.tags || []), tagName]) });
+  };
+  const renderThread = (threadMessages: Message[], referral?: MetaReferral) => (
+    <div className="chat-thread">
+      {referral && <ReferralCard referral={referral} />}
+      {threadMessages.length === 0 && (
+        <div className="chat-empty">
+          <Bot size={48} />
+          <strong>No hay mensajes todavia</strong>
+          <span>Cuando escriban al WhatsApp conectado, Magnet creara el lead y mostrara la conversacion aqui.</span>
+        </div>
+      )}
+      {threadMessages.map((message) => (
+        <div key={message.id} className={`bubble ${message.direction}`}>
+          {message.type === "audio" ? (
+            message.mediaUrl ? <AuthenticatedAudio src={message.mediaUrl} /> : <p><AudioLines size={16} /> Nota de voz recibida</p>
+          ) : <p>{message.text}</p>}
+          <small>
+            <span>{formatTime(message.timestamp)}</span>
+            {message.sender === "assistant" && <span className="mini-chip"><Bot size={12} />Bot</span>}
+            {message.status === "failed" && <span className="mini-chip danger"><AlertTriangle size={12} />Error</span>}
+            {message.direction === "outbound" && (
+              <span className={`receipt ${message.status}`} title={receiptTitle(message.status)}>
+                <CheckCheck size={14} />
+              </span>
+            )}
+          </small>
+        </div>
+      ))}
+    </div>
+  );
+  const renderComposer = () => (
+    <div className="composer">
+      <button><Paperclip size={19} /></button>
+      <button><Clipboard size={19} /></button>
+      <input
+        value={props.messageText}
+        onChange={(event) => props.setMessageText(event.target.value)}
+        placeholder="Escribe una respuesta..."
+        disabled={!selectedConversation}
+      />
+      <button className="primary icon" onClick={props.onSend} disabled={!selectedConversation}><Send size={18} /></button>
+    </div>
+  );
   const filteredConversations = props.conversations
     .map((conversation) => {
       const contact = props.contacts.find((item) => item.id === conversation.contactId);
@@ -1844,44 +1982,16 @@ function Chat(props: {
           <div className="chat-header-actions">
             {selectedWasHandledByBot && <span className="status-chip bot"><Bot size={14} />Bot activo</span>}
             {selectedHasError && <span className="status-chip warning"><AlertTriangle size={14} />Revisar</span>}
-            <select defaultValue={props.selectedContact?.status || "Nuevo"}>{leadStatuses.map((status) => <option key={status}>{status}</option>)}</select>
+            {selectedConversation && <span className="status-chip">{selectedConversation.status}</span>}
+            <select value={selectedConversation?.status || "Nuevo"} disabled={!selectedConversation} onChange={(event) => selectedConversation && props.onUpdateConversation(selectedConversation.id, { status: event.target.value as LeadStatus })}>{leadStatuses.map((status) => <option key={status}>{status}</option>)}</select>
+            <select value="" disabled={!selectedConversation} onChange={(event) => assignTag(event.target.value)}>
+              <option value="">Asignar etiqueta</option>
+              {props.tags.map((tag) => <option key={tag.id} value={tag.name}>{tag.name}</option>)}
+            </select>
           </div>
         </div>
-        <div className="chat-thread">
-          {selectedMessages.length === 0 && (
-            <div className="chat-empty">
-              <Bot size={48} />
-              <strong>No hay mensajes todavia</strong>
-              <span>Cuando escriban al WhatsApp conectado, Magnet creara el lead y mostrara la conversacion aqui.</span>
-            </div>
-          )}
-          {selectedMessages.map((message) => (
-            <div key={message.id} className={`bubble ${message.direction}`}>
-              <p>{message.text}</p>
-              <small>
-                <span>{formatTime(message.timestamp)}</span>
-                {message.sender === "assistant" && <span className="mini-chip"><Bot size={12} />Bot</span>}
-                {message.status === "failed" && <span className="mini-chip danger"><AlertTriangle size={12} />Error</span>}
-                {message.direction === "outbound" && (
-                  <span className={`receipt ${message.status}`} title={receiptTitle(message.status)}>
-                    <CheckCheck size={14} />
-                  </span>
-                )}
-              </small>
-            </div>
-          ))}
-        </div>
-        <div className="composer">
-          <button><Paperclip size={19} /></button>
-          <button><Clipboard size={19} /></button>
-          <input
-            value={props.messageText}
-            onChange={(event) => props.setMessageText(event.target.value)}
-            placeholder="Escribe una respuesta..."
-            disabled={!selectedConversation}
-          />
-          <button className="primary icon" onClick={props.onSend}><Send size={18} /></button>
-        </div>
+        {renderThread(selectedMessages, selectedReferral)}
+        {renderComposer()}
       </section>
       <aside className="conversation-list">
         <div className="searchbar"><Search size={18} /><input value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Buscar lead o conversación" /></div>
@@ -1905,36 +2015,46 @@ function Chat(props: {
           const hasError = conversationNeedsReview(messages);
           const wasHandledByBot = conversation.botEnabled || messages.some((message) => message.sender === "assistant");
           const visibleTags = tagList.slice(0, 3);
+          const isSelected = conversation.id === props.selectedConversationId;
+          const mobileReferral = conversation.referral || messages.find((message) => message.referral)?.referral;
           return (
-            <button
-              className={`conversation-item ${conversation.id === props.selectedConversationId ? "active" : ""} ${isUnread ? "unread" : ""} ${hasError ? "failed" : ""}`}
-              key={conversation.id}
-              onClick={() => props.setSelectedConversationId(conversation.id)}
-            >
-              <div className="conversation-top">
-                <strong>{contact?.name || "Contacto"}</strong>
-                <img className="channel-icon" src={channelMeta[channel].icon} alt={channelMeta[channel].shortLabel} title={channelMeta[channel].label} />
-                <span>{formatShortDate(conversation.lastMessageAt)}</span>
-              </div>
-              <div className="conversation-preview">
-                {isUnread && <i className="unread-dot" />}
-                <span>{conversation.lastMessage || "Sin mensajes todavia"}</span>
-                {lastMessage?.direction === "outbound" && (
-                  <em className={`receipt ${lastMessage.status}`} title={receiptTitle(lastMessage.status)}>
-                    <CheckCheck size={15} />
-                  </em>
-                )}
-              </div>
-              <div className="conversation-meta">
-                <div className="conversation-tags">
-                  {visibleTags.map((tag) => <i key={tag}>{labelFromTag(tag)}</i>)}
+            <article className={`conversation-item-shell ${isSelected ? "open" : ""}`} key={conversation.id}>
+              <button
+                className={`conversation-item ${isSelected ? "active" : ""} ${isUnread ? "unread" : ""} ${hasError ? "failed" : ""}`}
+                onClick={() => props.setSelectedConversationId(isSelected && shouldToggleConversationAccordion() ? "" : conversation.id)}
+              >
+                <div className="conversation-top">
+                  <strong>{contact?.name || "Contacto"}</strong>
+                  <img className="channel-icon" src={channelMeta[channel].icon} alt={channelMeta[channel].shortLabel} title={channelMeta[channel].label} />
+                  <span>{formatShortDate(conversation.lastMessageAt)}</span>
                 </div>
-                <div className="conversation-icons">
-                  {wasHandledByBot && <Bot size={15} />}
-                  {hasError && <AlertTriangle size={15} />}
+                <div className="conversation-preview">
+                  {isUnread && <i className="unread-dot" />}
+                  <span>{conversation.lastMessage || "Sin mensajes todavia"}</span>
+                  {lastMessage?.direction === "outbound" && (
+                    <em className={`receipt ${lastMessage.status}`} title={receiptTitle(lastMessage.status)}>
+                      <CheckCheck size={15} />
+                    </em>
+                  )}
                 </div>
-              </div>
-            </button>
+                <div className="conversation-meta">
+                  <div className="conversation-tags">
+                    {visibleTags.map((tag) => <i key={tag}>{labelFromTag(tag)}</i>)}
+                  </div>
+                  <div className="conversation-icons">
+                    {wasHandledByBot && <Bot size={15} />}
+                    {hasError && <AlertTriangle size={15} />}
+                    <ChevronDown className="conversation-chevron" size={16} />
+                  </div>
+                </div>
+              </button>
+              {isSelected && (
+                <div className="conversation-mobile-dropdown">
+                  {renderThread(messages, mobileReferral)}
+                  {renderComposer()}
+                </div>
+              )}
+            </article>
           );
         })}
         {!filteredConversations.length && <p className="muted-text">No hay conversaciones con esos filtros.</p>}
@@ -1943,9 +2063,63 @@ function Chat(props: {
   );
 }
 
+function AuthenticatedAudio({ src }: { src: string }) {
+  const [audioSrc, setAudioSrc] = useState(src.startsWith("/api/") ? "" : src);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (!src.startsWith("/api/")) {
+      setAudioSrc(src);
+      setFailed(false);
+      return;
+    }
+
+    let objectUrl = "";
+    let cancelled = false;
+    setAudioSrc("");
+    setFailed(false);
+    const token = localStorage.getItem("magnet_token");
+    fetch(src, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then((response) => {
+        if (!response.ok) throw new Error("Audio no disponible");
+        return response.blob();
+      })
+      .then((blob) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setAudioSrc(objectUrl);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [src]);
+
+  if (failed) return <p><AudioLines size={16} /> No se pudo cargar la nota de voz.</p>;
+  if (!audioSrc) return <p><AudioLines size={16} /> Cargando nota de voz...</p>;
+  return <audio controls src={audioSrc} />;
+}
+
+function ReferralCard({ referral }: { referral: MetaReferral }) {
+  return (
+    <div className="referral-card">
+      {(referral.imageUrl || referral.thumbnailUrl) && <img src={referral.imageUrl || referral.thumbnailUrl} alt="" />}
+      <div>
+        <strong>{referral.headline || "Anuncio de Meta"}</strong>
+        {referral.body && <p>{referral.body}</p>}
+        {referral.sourceUrl && <a href={referral.sourceUrl} target="_blank" rel="noreferrer">Ver detalles del anuncio</a>}
+      </div>
+    </div>
+  );
+}
+
 function deriveConversationTags(conversation: Conversation, _contact: Contact | undefined, messages: Message[]) {
   const lastText = `${conversation.lastMessage} ${messages[messages.length - 1]?.text || ""}`.toLowerCase();
-  const tags = [conversation.status, conversation.botEnabled ? "bot_activo" : "requiere_humano"];
+  const tags: string[] = [];
   if (lastText.includes("precio") || lastText.includes("pago") || lastText.includes("comprar")) tags.push("interés_comercial");
   if (lastText.includes("envío") || lastText.includes("domicilio")) tags.push("envío");
   return tags.filter(Boolean);
@@ -2259,20 +2433,13 @@ function SettingsView(props: {
             <small>Este campo permite usar la configuración de otro asistente como referencia para replicar plantillas, etiquetas, disparadores, entrenamiento u otras configuraciones.</small>
           </Field>
           <div className="settings-subsection">
-            <strong>Reportes automaticos</strong>
-            <span>Define el WhatsApp responsable y cada cuantas horas Magnet enviara el resumen.</span>
+            <strong>Alertas de nuevas conversaciones</strong>
+            <span>Magnet avisará al teléfono guardado en tu perfil y al correo registrado cada vez que entre una conversación nueva.</span>
           </div>
-          <Field label="Resumen por WhatsApp">
-            <label className="check-row"><input type="checkbox" checked={operations.summaryEnabled} onChange={(event) => updateOperations({ summaryEnabled: event.target.checked })} /> Enviar resumen automatico al responsable</label>
+          <Field label="Avisos inmediatos">
+            <label className="check-row"><input type="checkbox" checked={operations.newConversationAlertsEnabled} onChange={(event) => updateOperations({ newConversationAlertsEnabled: event.target.checked })} /> Avisarme por WhatsApp personal y correo cuando llegue una conversación nueva</label>
+            <small>El número se configura en Perfil. El correo usado es el de inicio de sesión.</small>
           </Field>
-          <div className="field-row">
-            <Field label="WhatsApp responsable">
-              <input value={operations.ownerWhatsAppNumber} onChange={(event) => updateOperations({ ownerWhatsAppNumber: event.target.value })} placeholder="573001112233" />
-            </Field>
-            <Field label="Cada cuantas horas">
-              <input type="number" min="1" value={operations.summaryIntervalHours} onChange={(event) => updateOperations({ summaryIntervalHours: Number(event.target.value) })} />
-            </Field>
-          </div>
           <div className="settings-subsection">
             <strong>Remarketing</strong>
             <span>Reactiva conversaciones que se quedaron sin cierre o brief completo.</span>
@@ -2323,9 +2490,10 @@ function SettingsView(props: {
             {props.aiSubtab === "Audio" && (
               <div className="form-grid">
                 <Field label="Respuestas de audio"><select value={draft.ai.audioEnabled ? "on" : "off"} onChange={(event) => setDraft({ ...draft, ai: { ...draft.ai, audioEnabled: event.target.value === "on" } })}><option value="on">Activado</option><option value="off">Desactivado</option></select></Field>
-                <Field label="Voz seleccionada"><input value={draft.ai.voice} onChange={(event) => setDraft({ ...draft, ai: { ...draft.ai, voice: event.target.value } })} /></Field>
+                <Field label="Voz seleccionada"><select value={draft.ai.voice} onChange={(event) => setDraft({ ...draft, ai: { ...draft.ai, voice: event.target.value } })}>{voiceOptions.map((voice) => <option key={voice.value} value={voice.value}>{voice.label}</option>)}</select></Field>
                 <Field label="Velocidad"><input type="number" step="0.1" value={draft.ai.voiceSpeed} onChange={(event) => setDraft({ ...draft, ai: { ...draft.ai, voiceSpeed: Number(event.target.value) } })} /></Field>
                 <Field label="Transcripción de notas de voz"><select value={draft.ai.transcribeIncomingAudio ? "on" : "off"} onChange={(event) => setDraft({ ...draft, ai: { ...draft.ai, transcribeIncomingAudio: event.target.value === "on" } })}><option value="on">Activada</option><option value="off">Desactivada</option></select></Field>
+                <p className="helper-text">La transcripción y la voz usan el proveedor de audio configurado en producción. Si el cliente envía una nota de voz, Magnet responderá con audio cuando esta opción esté activa.</p>
               </div>
             )}
           </Panel>
@@ -2338,18 +2506,19 @@ function SettingsView(props: {
             {visibleChannelTypes.map((channelId) => {
               const channel = normalizeChannelSettings(channelId, draft.channels[channelId]);
               const meta = channelMeta[channelId];
+              const unavailable = temporarilyUnavailableChannelTypes.has(channelId);
               return (
               <button
                 key={channelId}
-                className={selectedVisibleChannel === channelId ? "active" : ""}
+                className={`${selectedVisibleChannel === channelId ? "active" : ""} ${unavailable ? "unavailable" : ""}`}
                 onClick={() => setSelectedChannel(channelId)}
               >
                 <img src={meta.icon} alt="" aria-hidden="true" />
                 <div>
                   <strong>{meta.label}</strong>
                   <small>{meta.description}</small>
-                  <span className={channel.enabled ? "enabled" : "disabled"}>
-                    {channel.enabled ? "Activo" : "Inactivo"}
+                  <span className={unavailable ? "soon" : channel.enabled ? "enabled" : "disabled"}>
+                    {unavailable ? "Disponible proximamente" : channel.enabled ? "Activo" : "Inactivo"}
                   </span>
                 </div>
               </button>
@@ -2411,14 +2580,39 @@ function Templates({ templates, onSave, onDelete }: {
   );
 }
 
-function Contacts({ contacts, tags }: { contacts: Contact[]; tags: TagItem[] }) {
+function Contacts({ assistantId, contacts, tags, authFetch }: { assistantId: string; contacts: Contact[]; tags: TagItem[]; authFetch: (path: string, init?: RequestInit) => Promise<Response> }) {
   const [selectedTag, setSelectedTag] = useState("");
   const [search, setSearch] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const filteredContacts = contacts.filter((contact) => {
     const matchesTag = !selectedTag || contact.tags.includes(selectedTag);
     const matchesSearch = !search || `${contact.name} ${contact.phone} ${contact.email}`.toLowerCase().includes(search.toLowerCase());
-    return matchesTag && matchesSearch;
+    const lastTime = new Date(contact.lastMessageAt).getTime();
+    const matchesFrom = !from || lastTime >= new Date(`${from}T00:00:00`).getTime();
+    const matchesTo = !to || lastTime <= new Date(`${to}T23:59:59`).getTime();
+    return matchesTag && matchesSearch && matchesFrom && matchesTo;
   });
+
+  async function exportContacts() {
+    const params = new URLSearchParams();
+    if (selectedTag) params.set("tag", selectedTag);
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    const response = await authFetch(`/api/assistants/${assistantId}/contacts/export?${params.toString()}`);
+    if (!response.ok) {
+      window.alert("No se pudo exportar contactos.");
+      return;
+    }
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `magnet-contactos-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  }
+
   return (
     <Panel title="Contactos">
       <div className="contact-toolbar">
@@ -2427,6 +2621,9 @@ function Contacts({ contacts, tags }: { contacts: Contact[]; tags: TagItem[] }) 
           <option value="">Todas las etiquetas</option>
           {tags.map((tag) => <option key={tag.id} value={tag.name}>{tag.name}</option>)}
         </select>
+        <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} aria-label="Desde" />
+        <input type="date" value={to} onChange={(event) => setTo(event.target.value)} aria-label="Hasta" />
+        <button className="secondary" onClick={() => void exportContacts()}><Download size={16} />Exportar XLSX</button>
       </div>
       <div className="tag-strip">{tags.map((tag) => <button className={selectedTag === tag.name ? "active" : ""} key={tag.id} style={{ borderColor: tag.color }} onClick={() => setSelectedTag(selectedTag === tag.name ? "" : tag.name)}>{tag.name}</button>)}</div>
       <div className="table"><div className="table-head contacts"><span>Nombre</span><span>Teléfono</span><span>Fuente</span><span>Estado</span><span>Etiquetas</span><span>Score</span></div>{filteredContacts.map((contact) => <div className="table-row contacts" key={contact.id}><span>{contact.name}</span><span>{contact.phone}</span><span>{contact.source}</span><span>{contact.status}</span><span>{contact.tags.map((tag) => <i className="tag" key={tag}>{tag}</i>)}</span><span>{contact.leadScore}</span></div>)}</div>
@@ -2465,11 +2662,12 @@ function TagsView({ tags, onSave, onDelete }: {
 }
 
 function Integrations() {
-  const channels: Array<{ id: ChannelType; name: string; description: string }> = [
-    { id: "whatsapp", name: "WhatsApp Cloud API", description: "Conecta con Meta WhatsApp Business" },
-    { id: "instagram", name: "Instagram Direct Messages", description: "Responde mensajes de Instagram DM" },
-    { id: "messenger", name: "Facebook Messenger", description: "Integra con Messenger de Facebook" },
-    { id: "wordpress", name: "WordPress Forms", description: "Captura leads desde formularios WP" }
+  const channels: Array<{ id: string; name: string; description: string; unavailable: boolean }> = [
+    { id: "whatsapp", name: "WhatsApp Cloud API", description: "Conecta con Meta WhatsApp Business", unavailable: false },
+    { id: "instagram", name: "Instagram Direct Messages", description: "Disponible proximamente", unavailable: true },
+    { id: "messenger", name: "Facebook Messenger", description: "Disponible proximamente", unavailable: true },
+    { id: "wordpress", name: "WordPress Forms", description: "Disponible proximamente", unavailable: true },
+    { id: "shopify", name: "Shopify Entradas", description: "Disponible proximamente", unavailable: true }
   ];
 
   return (
@@ -2477,9 +2675,64 @@ function Integrations() {
       {channels.map((channel) => (
         <Panel title={channel.name} key={channel.id}>
           <p className="muted-text">{channel.description}</p>
-          <button className="secondary">Configurar en Ajustes</button>
+          {channel.unavailable && <span className="soon-badge">Disponible proximamente</span>}
+          <button className="secondary" disabled={channel.unavailable}>
+            {channel.unavailable ? "Disponible proximamente" : "Configurar en Ajustes"}
+          </button>
         </Panel>
       ))}
+    </div>
+  );
+}
+
+function ProfileView({ account, onSave }: { account: AccountState; onSave: (patch: Partial<AccountUser>) => void }) {
+  const [draft, setDraft] = useState({
+    name: account.user.name || "",
+    phone: account.user.phone || "",
+    companyName: account.user.companyName || "",
+    taxId: account.user.taxId || "",
+    theme: account.user.theme || "light"
+  });
+
+  useEffect(() => {
+    setDraft({
+      name: account.user.name || "",
+      phone: account.user.phone || "",
+      companyName: account.user.companyName || "",
+      taxId: account.user.taxId || "",
+      theme: account.user.theme || "light"
+    });
+  }, [account]);
+
+  return (
+    <div className="profile-view">
+      <Panel title="Perfil de usuario">
+        <div className="profile-hero">
+          <div className="avatar large">{account.user.avatarUrl ? <img src={account.user.avatarUrl} alt="" /> : account.user.name.slice(0, 1)}</div>
+          <div>
+            <strong>{account.user.name}</strong>
+            <span>{account.user.email}</span>
+            <small>{account.user.provider === "google" ? "Cuenta conectada con Google" : "Cuenta por email"}</small>
+          </div>
+        </div>
+        <div className="form-grid">
+          <Field label="Nombre"><input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></Field>
+          <Field label="Correo registrado"><input value={account.user.email} readOnly /></Field>
+          <Field label="WhatsApp personal para alertas"><input value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} placeholder="573226898323" /></Field>
+          <Field label="Tema"><select value={draft.theme} onChange={(event) => setDraft({ ...draft, theme: event.target.value as AccountUser["theme"] })}><option value="light">Claro</option><option value="dark">Oscuro</option></select></Field>
+        </div>
+        <button className="primary" onClick={() => onSave(draft)}><Save size={17} />Guardar perfil</button>
+      </Panel>
+      <Panel title="Datos corporativos">
+        <div className="form-grid">
+          <Field label="Empresa"><input value={draft.companyName} onChange={(event) => setDraft({ ...draft, companyName: event.target.value })} placeholder="Nombre de la empresa" /></Field>
+          <Field label="NIT / identificación fiscal"><input value={draft.taxId} onChange={(event) => setDraft({ ...draft, taxId: event.target.value })} placeholder="900123456-7" /></Field>
+        </div>
+        <p className="muted-text">Estos datos quedan listos para el informe de facturación y comprobantes cuando conectemos la etapa de pagos.</p>
+      </Panel>
+      <Panel title="Facturación">
+        <p className="muted-text">Los comprobantes descargables se conectarán en la siguiente etapa de pagos. Por ahora tu historial visible está en Recarga / Créditos.</p>
+      </Panel>
     </div>
   );
 }
@@ -2519,9 +2772,9 @@ function Credits({
       <Panel title="Recarga / Créditos">
         <div className="credit-box">
           <strong>{credits}</strong>
-          <span>Mensajes disponibles para respuestas automaticas de IA</span>
+          <span>Conversaciones disponibles para respuestas automáticas de IA</span>
           <div className="progress"><i style={{ width: `${Math.min(100, credits)}%` }} /></div>
-          <p className="muted-text">Cada respuesta enviada por IA descuenta 1 mensaje. Tus primeros 100 mensajes gratis se activan al registrarte.</p>
+          <p className="muted-text">Cada conversación nueva atendida por IA descuenta 1 crédito. Tus primeras 100 conversaciones gratis se activan al registrarte.</p>
         </div>
       </Panel>
       <Panel title="Paquetes disponibles">
@@ -2533,7 +2786,8 @@ function Credits({
           {billing.packages.map((item) => (
             <article key={item.id}>
               <strong>{item.messages}</strong>
-              <span>{formatCop(item.priceCop)}</span>
+              <span>{formatUsd(item.priceUsd)} USD</span>
+              <small>{formatCop(item.priceCop)} COP aprox.</small>
               <small>{item.name}</small>
               <button className="primary" onClick={() => void buyPackage(item.id)} disabled={checkoutLoading === item.id}>
                 {checkoutLoading === item.id ? "Abriendo..." : "Comprar"}
@@ -2551,7 +2805,7 @@ function Credits({
               <small>Saldo {entry.balanceAfter}</small>
             </div>
           ))}
-          {!account?.ledger?.length && <p className="muted-text">Aun no hay movimientos de creditos.</p>}
+          {!account?.ledger?.length && <p className="muted-text">Aun no hay movimientos de créditos.</p>}
         </div>
       </Panel>
     </div>
@@ -2645,7 +2899,7 @@ function AdminView({ overview, onRefresh, authFetch }: { overview: AdminOverview
             <article key={organization.id}>
               <strong>{organization.messageCredits}</strong>
               <span>{organization.name}</span>
-              <small>{organization.planType || "Gratis"} · {organization.freeMessagesGranted ? "100 tokens entregados" : "Sin tokens iniciales"}</small>
+              <small>{organization.planType || "Gratis"} · {organization.freeMessagesGranted ? "100 conversaciones entregadas" : "Sin conversaciones iniciales"}</small>
             </article>
           ))}
         </div>
@@ -2658,6 +2912,14 @@ function formatCop(value: number) {
   return new Intl.NumberFormat("es-CO", {
     style: "currency",
     currency: "COP",
+    maximumFractionDigits: 0
+  }).format(value);
+}
+
+function formatUsd(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
     maximumFractionDigits: 0
   }).format(value);
 }

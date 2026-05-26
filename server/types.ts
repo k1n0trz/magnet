@@ -24,6 +24,18 @@ export interface ChannelCredentials {
   [key: string]: string;
 }
 
+export interface MetaReferral {
+  sourceType: string;
+  sourceId: string;
+  sourceUrl: string;
+  headline: string;
+  body: string;
+  mediaType: string;
+  imageUrl: string;
+  videoUrl: string;
+  thumbnailUrl: string;
+}
+
 export interface ChannelSettings {
   channel: ChannelType;
   enabled: boolean;
@@ -43,6 +55,9 @@ export interface ChannelInboundMessage {
   type: "text" | "audio" | "image" | "document";
   text?: string;
   mediaUrl?: string;
+  mediaId?: string;
+  mediaMimeType?: string;
+  referral?: MetaReferral;
 }
 
 export interface ChannelSendResult {
@@ -106,6 +121,7 @@ export interface AssistantOperationsSettings {
   summaryEnabled: boolean;
   summaryIntervalHours: number;
   lastSummaryAt: string;
+  newConversationAlertsEnabled: boolean;
   remarketingEnabled: boolean;
   remarketingDelayHours: number;
   remarketingWebsiteUrl: string;
@@ -128,6 +144,11 @@ export interface User {
   organizationId: string;
   name: string;
   email: string;
+  phone: string;
+  avatarUrl: string;
+  companyName: string;
+  taxId: string;
+  theme: "dark" | "light";
   passwordHash: string;
   role: UserRole;
   provider: AuthProvider;
@@ -142,6 +163,7 @@ export interface MessagePackage {
   id: string;
   name: string;
   messages: number;
+  priceUsd: number;
   priceCop: number;
   currency: "COP";
 }
@@ -166,6 +188,7 @@ export interface Contact {
   email: string;
   source: string;
   tags: string[];
+  referral?: MetaReferral;
   leadScore: number;
   status: LeadStatus;
   lastMessageAt: string;
@@ -183,6 +206,7 @@ export interface Conversation {
   lastMessage: string;
   lastMessageAt: string;
   tags: string[];
+  referral?: MetaReferral;
   createdAt: string;
   updatedAt: string;
 }
@@ -197,6 +221,9 @@ export interface Message {
   type: "text" | "audio" | "image" | "document" | "note";
   text: string;
   mediaUrl: string;
+  mediaId?: string;
+  mediaMimeType?: string;
+  referral?: MetaReferral;
   channel: ChannelType;
   channelMessageId: string;
   status: "received" | "sent" | "delivered" | "read" | "failed";
@@ -280,8 +307,10 @@ export interface Store {
   listAssistants(): Promise<Assistant[]>;
   getAssistant(id: string): Promise<Assistant | undefined>;
   upsertContact(input: Partial<Contact> & { assistantId: string; phone: string }): Promise<Contact>;
+  updateContact(id: string, patch: Partial<Contact>): Promise<Contact>;
   listContacts(assistantId: string): Promise<Contact[]>;
   upsertConversation(input: Partial<Conversation> & { assistantId: string; contactId: string }): Promise<Conversation>;
+  updateConversation(id: string, patch: Partial<Conversation>): Promise<Conversation>;
   listConversations(assistantId: string): Promise<Conversation[]>;
   addMessage(input: Omit<Message, "id" | "createdAt">): Promise<Message>;
   updateMessageStatus(input: { assistantId: string; channelMessageId: string; status: Message["status"] }): Promise<Message | undefined>;

@@ -85,6 +85,55 @@ describe("Channel Handlers", () => {
       });
     });
 
+    it("parses Click-to-WhatsApp referral metadata and audio media ids", () => {
+      const payload = {
+        entry: [{
+          changes: [{
+            value: {
+              contacts: [{ profile: { name: "Sara" } }],
+              messages: [{
+                id: "wamid.audio",
+                from: "573022281038",
+                timestamp: "1735689600",
+                type: "audio",
+                audio: { id: "media-audio-123", mime_type: "audio/ogg; codecs=opus", voice: true },
+                referral: {
+                  source_type: "ad",
+                  source_id: "238555123",
+                  source_url: "https://fb.me/ad/238555123",
+                  headline: "Anuncio de Instagram",
+                  body: "Rellena el formulario para registrarte.",
+                  media_type: "image",
+                  image_url: "https://example.com/ad.jpg"
+                }
+              }]
+            }
+          }]
+        }]
+      };
+
+      const messages = handler.parseInbound(payload);
+
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toMatchObject({
+        messageId: "wamid.audio",
+        from: "573022281038",
+        profileName: "Sara",
+        type: "audio",
+        mediaId: "media-audio-123",
+        mediaMimeType: "audio/ogg; codecs=opus",
+        referral: {
+          sourceType: "ad",
+          sourceId: "238555123",
+          sourceUrl: "https://fb.me/ad/238555123",
+          headline: "Anuncio de Instagram",
+          body: "Rellena el formulario para registrarte.",
+          mediaType: "image",
+          imageUrl: "https://example.com/ad.jpg"
+        }
+      });
+    });
+
     it("returns error when credentials are missing", async () => {
       const settings = {
         channel: "whatsapp" as const,

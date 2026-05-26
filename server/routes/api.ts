@@ -1,24 +1,52 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
 import bcrypt from "bcryptjs";
+import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { decryptSecret } from "../lib/crypto";
 import { isValidReferenceAssistantId } from "../lib/validation";
 import { generateAssistantReply } from "../services/ai";
+import { fetchWhatsAppMedia } from "../services/audio";
 import { sendWhatsAppText } from "../services/whatsapp";
-import type { Assistant, ChannelSettings, MessagePackage, Store, User } from "../types";
+import { buildContactsWorkbook } from "../services/xlsx";
+import type { Assistant, ChannelSettings, ChannelType, LeadStatus, MessagePackage, Store, User } from "../types";
 
 interface RuntimeStatus {
   persistence: "memory" | "mongo";
   realWhatsAppEnabled: boolean;
 }
 
-const messagePackages: MessagePackage[] = [
-  { id: "messages-500", name: "500 mensajes", messages: 500, priceCop: 29900, currency: "COP" },
-  { id: "messages-1000", name: "1000 mensajes", messages: 1000, priceCop: 49900, currency: "COP" },
-  { id: "messages-2000", name: "2000 mensajes", messages: 2000, priceCop: 89900, currency: "COP" },
-  { id: "messages-5000", name: "5000 mensajes", messages: 5000, priceCop: 199900, currency: "COP" }
-];
+const conversationPackages = [
+  { id: "conversations-500", name: "500 conversaciones", messages: 500, priceUsd: 20 },
+  { id: "conversations-1000", name: "1000 conversaciones", messages: 1000, priceUsd: 35 },
+  { id: "conversations-2000", name: "2000 conversaciones", messages: 2000, priceUsd: 60 }
+] as const;
+const temporarilyUnavailableChannels = new Set<ChannelType>(["instagram", "messenger", "wordpress"]);
+
+function messagePackages(): MessagePackage[] {
+  const usdToCop = Number(process.env.MERCADO_PAGO_USD_TO_COP || 4000);
+  const rate = Number.isFinite(usdToCop) && usdToCop > 0 ? usdToCop : 4000;
+  return conversationPackages.map((item) => ({
+    ...item,
+    priceCop: Math.round(item.priceUsd * rate),
+    currency: "COP" as const
+  }));
+}
+
+const leadStatusesSchema = [
+  "Nuevo",
+  "Por contactar",
+  "Contactado",
+  "Calificado",
+  "En negociación",
+  "Por facturar",
+  "Pendiente de pago",
+  "Ganado",
+  "Perdido",
+  "Recontactar",
+  "No responde",
+  "Spam"
+] as [LeadStatus, ...LeadStatus[]];
 
 export function apiRouter(store: Store, runtime: RuntimeStatus) {
   const router = Router();
@@ -33,6 +61,21 @@ export function apiRouter(store: Store, runtime: RuntimeStatus) {
   router.get("/public-config", (_req, res) => res.json({
     googleClientId: process.env.GOOGLE_CLIENT_ID || ""
   }));
+
+  router.get("/media/whatsapp/:assistantId/:mediaId", requireAuth(store), async (req, res) => {
+    const assistant = await store.getAssistant(String(req.params.assistantId));
+    if (!assistant || !canAccessAssistant(req.user!, assistant.organizationId)) {
+      res.status(404).json({ error: "Assistant not found" });
+      return;
+    }
+    const media = await fetchWhatsAppMedia(assistant.channels.whatsapp, String(req.params.mediaId));
+    if (!media) {
+      res.status(404).json({ error: "Media not found" });
+      return;
+    }
+    res.setHeader("Content-Type", media.mimeType);
+    res.send(media.buffer);
+  });
 
   router.post("/auth/register", async (req, res) => {
     const schema = z.object({
@@ -132,6 +175,7 @@ export function apiRouter(store: Store, runtime: RuntimeStatus) {
         organizationId: organization.id,
         name: profile.name,
         email: profile.email,
+        avatarUrl: profile.picture,
         role: initialRoleFor(profile.email),
         provider: "google",
         googleSub: profile.sub,
@@ -151,6 +195,7 @@ export function apiRouter(store: Store, runtime: RuntimeStatus) {
       await store.updateUser(user.id, {
         provider: user.provider === "email" ? user.provider : "google",
         googleSub: user.googleSub || profile.sub,
+        avatarUrl: user.avatarUrl || profile.picture,
         emailVerified: true,
         lastLoginAt: new Date().toISOString()
       });
@@ -160,7 +205,7 @@ export function apiRouter(store: Store, runtime: RuntimeStatus) {
   });
 
   router.get("/billing/packages", (_req, res) => {
-    res.json({ packages: messagePackages, mercadoPagoConfigured: Boolean(process.env.MERCADO_PAGO_ACCESS_TOKEN) });
+    res.json({ packages: messagePackages(), mercadoPagoConfigured: Boolean(process.env.MERCADO_PAGO_ACCESS_TOKEN) });
   });
 
   router.post("/billing/checkout", requireAuth(store), async (req, res) => {
@@ -171,7 +216,7 @@ export function apiRouter(store: Store, runtime: RuntimeStatus) {
       return;
     }
 
-    const selectedPackage = messagePackages.find((item) => item.id === parsed.data.packageId);
+    const selectedPackage = messagePackages().find((item) => item.id === parsed.data.packageId);
     if (!selectedPackage) {
       res.status(404).json({ error: "Message package not found" });
       return;
@@ -189,13 +234,14 @@ export function apiRouter(store: Store, runtime: RuntimeStatus) {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${accessToken}`,
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "X-Idempotency-Key": randomUUID()
       },
       body: JSON.stringify({
         items: [{
           id: selectedPackage.id,
           title: `MAGNET - ${selectedPackage.name}`,
-          description: `${selectedPackage.messages} mensajes para respuestas automaticas de IA`,
+          description: `${selectedPackage.messages} conversaciones para respuestas automaticas de IA`,
           quantity: 1,
           currency_id: selectedPackage.currency,
           unit_price: selectedPackage.priceCop
@@ -209,6 +255,13 @@ export function apiRouter(store: Store, runtime: RuntimeStatus) {
           userId: user.id,
           packageId: selectedPackage.id
         }),
+        metadata: {
+          organization_id: user.organizationId,
+          user_id: user.id,
+          package_id: selectedPackage.id,
+          conversations: selectedPackage.messages,
+          price_usd: selectedPackage.priceUsd
+        },
         back_urls: {
           success: `${appBaseUrl}/?billing=success`,
           pending: `${appBaseUrl}/?billing=pending`,
@@ -234,12 +287,113 @@ export function apiRouter(store: Store, runtime: RuntimeStatus) {
   });
 
   router.post("/billing/mercadopago/webhook", async (req, res) => {
-    // Mercado Pago confirmation and crediting will be enabled once production credentials are available.
-    res.status(202).json({ ok: true });
+    const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN;
+    if (!accessToken) {
+      res.status(503).json({ error: "Mercado Pago is not configured" });
+      return;
+    }
+
+    if (!isValidMercadoPagoSignature(req)) {
+      res.status(401).json({ error: "Invalid Mercado Pago signature" });
+      return;
+    }
+
+    const notification = req.body as {
+      type?: string;
+      topic?: string;
+      data?: { id?: string | number };
+      resource?: string;
+    };
+    const topic = String(notification.type || notification.topic || req.query.type || req.query.topic || "");
+    const paymentId = String(notification.data?.id || req.query["data.id"] || req.query.id || "");
+
+    if (topic && topic !== "payment") {
+      res.status(200).json({ ok: true, ignored: topic });
+      return;
+    }
+    if (!paymentId) {
+      res.status(202).json({ ok: true, pending: "missing_payment_id" });
+      return;
+    }
+
+    const paymentResponse = await fetch(`https://api.mercadopago.com/v1/payments/${encodeURIComponent(paymentId)}`, {
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "Accept": "application/json"
+      }
+    });
+
+    const payment = await paymentResponse.json() as {
+      id?: string | number;
+      status?: string;
+      external_reference?: string;
+      transaction_amount?: number;
+      currency_id?: string;
+    };
+
+    if (!paymentResponse.ok) {
+      res.status(502).json({ error: "Mercado Pago payment could not be verified" });
+      return;
+    }
+    if (payment.status !== "approved") {
+      res.status(202).json({ ok: true, status: payment.status || "unknown" });
+      return;
+    }
+
+    const reference = parseMercadoPagoReference(payment.external_reference);
+    const selectedPackage = messagePackages().find((item) => item.id === reference.packageId);
+    if (!reference.organizationId || !selectedPackage) {
+      res.status(202).json({ ok: true, pending: "unknown_reference" });
+      return;
+    }
+
+    const existingLedger = await store.listCreditLedger(reference.organizationId);
+    const alreadyCredited = existingLedger.some((entry) => entry.type === "purchase" && String(entry.metadata.paymentId || "") === paymentId);
+    if (!alreadyCredited) {
+      await store.addCredits({
+        organizationId: reference.organizationId,
+        userId: reference.userId,
+        amount: selectedPackage.messages,
+        type: "purchase",
+        description: `Compra Mercado Pago - ${selectedPackage.name}`,
+        metadata: {
+          paymentId,
+          packageId: selectedPackage.id,
+          priceUsd: selectedPackage.priceUsd,
+          priceCop: selectedPackage.priceCop,
+          transactionAmount: payment.transaction_amount,
+          currency: payment.currency_id || selectedPackage.currency
+        }
+      });
+    }
+
+    res.status(200).json({ ok: true, credited: !alreadyCredited });
   });
 
   router.get("/me", requireAuth(store), async (req, res) => {
     const user = req.user!;
+    res.json({
+      user: publicUser(user),
+      organization: await store.getOrganization(user.organizationId),
+      ledger: await store.listCreditLedger(user.organizationId)
+    });
+  });
+
+  router.patch("/me", requireAuth(store), async (req, res) => {
+    const schema = z.object({
+      name: z.string().min(2).optional(),
+      phone: z.string().max(32).optional(),
+      companyName: z.string().max(120).optional(),
+      taxId: z.string().max(60).optional(),
+      theme: z.enum(["dark", "light"]).optional()
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.flatten() });
+      return;
+    }
+
+    const user = await store.updateUser(req.user!.id, parsed.data);
     res.json({
       user: publicUser(user),
       organization: await store.getOrganization(user.organizationId),
@@ -262,7 +416,7 @@ export function apiRouter(store: Store, runtime: RuntimeStatus) {
         assistants: assistants.length,
         creditsAvailable: organizations.reduce((sum, organization) => sum + organization.messageCredits, 0)
       },
-      packages: messagePackages,
+      packages: messagePackages(),
       users: users.map(publicUser),
       organizations,
       assistants,
@@ -334,6 +488,11 @@ export function apiRouter(store: Store, runtime: RuntimeStatus) {
       res.status(400).json({ error: validation.error });
       return;
     }
+    const blockedChannel = findTemporarilyUnavailableChannel(req.body);
+    if (blockedChannel) {
+      res.status(400).json({ error: `${channelLabel(blockedChannel)}: Disponible próximamente` });
+      return;
+    }
     const assistant = await store.updateAssistant(assistantId, req.body);
     res.json(assistant);
   });
@@ -385,6 +544,70 @@ export function apiRouter(store: Store, runtime: RuntimeStatus) {
       });
     }
     res.status(201).json(message);
+  });
+
+  router.patch("/assistants/:assistantId/conversations/:conversationId", requireAuth(store), async (req, res) => {
+    const schema = z.object({
+      status: z.enum(leadStatusesSchema).optional(),
+      tags: z.array(z.string().min(1)).optional(),
+      assignedTo: z.enum(["bot", "human"]).optional(),
+      botEnabled: z.boolean().optional()
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.flatten() });
+      return;
+    }
+    const assistant = await store.getAssistant(String(req.params.assistantId));
+    if (!assistant || !canAccessAssistant(req.user!, assistant.organizationId)) {
+      res.status(404).json({ error: "Assistant not found" });
+      return;
+    }
+    const conversation = (await store.listConversations(assistant.id)).find((item) => item.id === String(req.params.conversationId));
+    if (!conversation) {
+      res.status(404).json({ error: "Conversation not found" });
+      return;
+    }
+    const updatedConversation = await store.updateConversation(conversation.id, parsed.data);
+    const contactPatch = {
+      ...(parsed.data.status ? { status: parsed.data.status } : {}),
+      ...(parsed.data.tags ? { tags: parsed.data.tags } : {})
+    };
+    const updatedContact = Object.keys(contactPatch).length
+      ? await store.updateContact(conversation.contactId, contactPatch)
+      : undefined;
+    res.json({ conversation: updatedConversation, contact: updatedContact });
+  });
+
+  router.get("/assistants/:assistantId/contacts/export", requireAuth(store), async (req, res) => {
+    const assistant = await store.getAssistant(String(req.params.assistantId));
+    if (!assistant || !canAccessAssistant(req.user!, assistant.organizationId)) {
+      res.status(404).json({ error: "Assistant not found" });
+      return;
+    }
+    const contacts = filterContacts(await store.listContacts(assistant.id), {
+      tag: String(req.query.tag || ""),
+      from: String(req.query.from || ""),
+      to: String(req.query.to || "")
+    });
+    const rows = [
+      ["Nombre", "Telefono", "Email", "Fuente", "Estado", "Etiquetas", "Score", "Ultimo mensaje", "Anuncio"],
+      ...contacts.map((contact) => [
+        contact.name,
+        contact.phone,
+        contact.email,
+        contact.source,
+        contact.status,
+        contact.tags.join(", "),
+        String(contact.leadScore),
+        contact.lastMessageAt,
+        contact.referral?.headline || ""
+      ])
+    ];
+    const workbook = buildContactsWorkbook(rows);
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="magnet-contactos-${assistant.id}.xlsx"`);
+    res.send(workbook);
   });
 
   router.post("/assistants/:assistantId/simulate", requireAuth(store), async (req, res) => {
@@ -565,6 +788,11 @@ function publicUser(user: User) {
     organizationId: user.organizationId,
     name: user.name,
     email: user.email,
+    phone: user.phone || "",
+    avatarUrl: user.avatarUrl || "",
+    companyName: user.companyName || "",
+    taxId: user.taxId || "",
+    theme: user.theme || "light",
     role: user.role,
     provider: user.provider,
     emailVerified: user.emailVerified,
@@ -579,6 +807,18 @@ function initialRoleFor(email: string) {
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean);
   return adminEmails.includes(email.toLowerCase()) ? "superadmin" : "user";
+}
+
+function filterContacts(contacts: Awaited<ReturnType<Store["listContacts"]>>, filters: { tag: string; from: string; to: string }) {
+  const fromTime = filters.from ? new Date(`${filters.from}T00:00:00.000Z`).getTime() : 0;
+  const toTime = filters.to ? new Date(`${filters.to}T23:59:59.999Z`).getTime() : Number.POSITIVE_INFINITY;
+  return contacts.filter((contact) => {
+    const time = new Date(contact.lastMessageAt || contact.createdAt).getTime();
+    if (filters.tag && !contact.tags.includes(filters.tag)) return false;
+    if (Number.isFinite(fromTime) && time < fromTime) return false;
+    if (Number.isFinite(toTime) && time > toTime) return false;
+    return true;
+  });
 }
 
 function requireAuth(store: Store) {
@@ -634,6 +874,65 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
 
 function isAdmin(user: User) {
   return ["admin", "superadmin"].includes(user.role);
+}
+
+function findTemporarilyUnavailableChannel(patch: Partial<Assistant>) {
+  const channels = (patch.channels || {}) as Partial<Assistant["channels"]>;
+  for (const channel of temporarilyUnavailableChannels) {
+    if (channels[channel]?.enabled) return channel;
+  }
+  return "";
+}
+
+function channelLabel(channel: ChannelType) {
+  if (channel === "instagram") return "Instagram";
+  if (channel === "messenger") return "Messenger";
+  if (channel === "wordpress") return "WordPress";
+  return channel;
+}
+
+function parseMercadoPagoReference(value: unknown) {
+  if (typeof value !== "string") return { organizationId: "", userId: "", packageId: "" };
+  try {
+    const parsed = JSON.parse(value) as { organizationId?: unknown; userId?: unknown; packageId?: unknown };
+    return {
+      organizationId: typeof parsed.organizationId === "string" ? parsed.organizationId : "",
+      userId: typeof parsed.userId === "string" ? parsed.userId : "",
+      packageId: typeof parsed.packageId === "string" ? parsed.packageId : ""
+    };
+  } catch {
+    return { organizationId: "", userId: "", packageId: "" };
+  }
+}
+
+function isValidMercadoPagoSignature(req: Request) {
+  const secret = process.env.MERCADO_PAGO_WEBHOOK_SECRET;
+  if (!secret) return true;
+
+  const signatureHeader = String(req.headers["x-signature"] || "");
+  const requestId = String(req.headers["x-request-id"] || "");
+  const parts = Object.fromEntries(
+    signatureHeader
+      .split(",")
+      .map((part) => part.split("=", 2).map((value) => value.trim()))
+      .filter((part): part is [string, string] => part.length === 2 && Boolean(part[0]) && Boolean(part[1]))
+  );
+  const ts = parts.ts || "";
+  const hash = parts.v1 || "";
+  if (!requestId || !ts || !hash) return false;
+
+  const body = req.body as { data?: { id?: string | number } };
+  const dataId = String(req.query["data.id"] || body.data?.id || "").toLowerCase();
+  const manifest = `id:${dataId};request-id:${requestId};ts:${ts};`;
+  const expected = createHmac("sha256", secret).update(manifest).digest("hex");
+  return safeEqual(hash, expected);
+}
+
+function safeEqual(left: string, right: string) {
+  const leftBuffer = Buffer.from(left, "hex");
+  const rightBuffer = Buffer.from(right, "hex");
+  if (leftBuffer.length !== rightBuffer.length) return false;
+  return timingSafeEqual(leftBuffer, rightBuffer);
 }
 
 async function validateWhatsAppChannelPatch(current: Assistant, patch: Partial<Assistant>) {
@@ -722,6 +1021,7 @@ async function verifyGoogleCredential(credential: string) {
     email?: string;
     email_verified?: string;
     name?: string;
+    picture?: string;
   };
 
   if (payload.aud !== clientId || !payload.sub || !payload.email || payload.email_verified !== "true") {
@@ -731,6 +1031,7 @@ async function verifyGoogleCredential(credential: string) {
   return {
     sub: payload.sub,
     email: payload.email.toLowerCase(),
-    name: payload.name || payload.email.split("@")[0]
+    name: payload.name || payload.email.split("@")[0],
+    picture: payload.picture || ""
   };
 }

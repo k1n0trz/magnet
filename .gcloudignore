@@ -6,5 +6,6 @@ npm-debug.log
 *.local
 .incoming/
 .local-backups/
+data/
 qa-*.png
 preview.*.log

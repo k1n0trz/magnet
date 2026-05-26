@@ -1,6 +1,6 @@
 import mongoose, { Schema } from "mongoose";
 import { randomUUID } from "node:crypto";
-import { encryptSecret, maskSecret } from "../lib/crypto";
+import { encryptSecret } from "../lib/crypto";
 import type {
   Assistant,
   Contact,
@@ -99,6 +99,11 @@ function createMongoStore(): Store {
         organizationId: input.organizationId,
         name: input.name,
         email: input.email.toLowerCase().trim(),
+        phone: input.phone || "",
+        avatarUrl: input.avatarUrl || "",
+        companyName: input.companyName || "",
+        taxId: input.taxId || "",
+        theme: input.theme || "light",
         passwordHash: input.passwordHash || "",
         role: input.role || "user",
         provider: input.provider || "email",
@@ -235,6 +240,7 @@ function createMongoStore(): Store {
         email: input.email || "",
         source: input.source || "WhatsApp",
         tags: mergeTags(current?.tags, input.tags),
+        referral: input.referral || current?.referral,
         leadScore: input.leadScore ?? current?.leadScore ?? 45,
         status: input.status || current?.status || "Nuevo",
         lastMessageAt: input.lastMessageAt || now(),
@@ -243,6 +249,13 @@ function createMongoStore(): Store {
       };
       await ContactModel.updateOne({ assistantId: input.assistantId, phone: input.phone }, { $set: contact }, { upsert: true });
       return contact;
+    },
+    async updateContact(id, patch) {
+      const existingDoc = await ContactModel.findOne({ id }).lean();
+      if (!existingDoc) throw new Error("Contact not found");
+      const next: Contact = { ...clean<Contact>(existingDoc), ...patch, updatedAt: now() };
+      await ContactModel.updateOne({ id }, { $set: next });
+      return next;
     },
     async listContacts(assistantId) {
       return (await ContactModel.find({ assistantId }).lean()).map((doc) => clean<Contact>(doc));
@@ -261,11 +274,19 @@ function createMongoStore(): Store {
         lastMessage: input.lastMessage || existing?.lastMessage || "",
         lastMessageAt: input.lastMessageAt || existing?.lastMessageAt || now(),
         tags: mergeTags(existing?.tags, input.tags),
+        referral: input.referral || existing?.referral,
         createdAt: existing?.createdAt || now(),
         updatedAt: now()
       };
       await ConversationModel.updateOne(query, { $set: conversation }, { upsert: true });
       return conversation;
+    },
+    async updateConversation(id, patch) {
+      const existingDoc = await ConversationModel.findOne({ id }).lean();
+      if (!existingDoc) throw new Error("Conversation not found");
+      const next: Conversation = { ...clean<Conversation>(existingDoc), ...patch, updatedAt: now() };
+      await ConversationModel.updateOne({ id }, { $set: next });
+      return next;
     },
     async listConversations(assistantId) {
       return (await ConversationModel.find({ assistantId }).lean()).map((doc) => clean<Conversation>(doc));

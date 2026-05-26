@@ -51,4 +51,35 @@ describe("AI service", () => {
     expect(assistant.ai.modelProvider).toBe("deepseek");
     expect(assistant.ai.modelName).toBe("deepseek-chat");
   });
+
+  it("keeps the local fallback conversational instead of echoing a robotic template", async () => {
+    const assistant = buildAssistant({ name: "Luisa Gracia" });
+    assistant.ai = {
+      ...assistant.ai,
+      modelProvider: "local"
+    };
+
+    const reply = await generateAssistantReply({
+      assistant,
+      inboundText: "Que servicios ofreces?",
+      history: [],
+      triggers: [],
+      products: [{
+        id: "therapy",
+        assistantId: assistant.id,
+        name: "Terapia online",
+        description: "Sesiones de psicologia online para bienestar emocional y desarrollo personal.",
+        imageUrl: "",
+        price: "",
+        currency: "COP",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }]
+    });
+
+    expect(reply).toContain("Luisa Gracia");
+    expect(reply).toContain("Terapia online");
+    expect(reply).not.toContain("Entiendo:");
+    expect(reply).not.toContain("Me confirmas tu nombre");
+  });
 });
