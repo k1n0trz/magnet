@@ -534,8 +534,7 @@ function LegacyLandingPage() {
       <footer className="landing-footer" id="recursos">
         <div><LogoMark /><p>La plataforma de IA para convertir conversaciones en ventas.</p><span>○ ○ ○ ○</span></div>
         <nav><strong>Producto</strong><a href="#producto">Inbox</a><a href="#soluciones">Automatizaciones</a><a href="#precios">Precios</a></nav>
-        <nav><strong>Soluciones</strong><a>Ventas</a><a>Atencion al cliente</a><a>E-commerce</a></nav>
-        <nav><strong>Recursos</strong><a>Blog</a><a>Guias</a><a>Centro de ayuda</a></nav>
+        <nav><strong>Recursos</strong><a>Guias</a><a>Centro de ayuda</a></nav>
         <nav><strong>Empresa</strong><a>Quienes somos</a><a>Contacto</a><a href="/login">Ingresar</a></nav>
         <small>© 2026 Magnet. Todos los derechos reservados.</small>
         <div className="legal-links"><a href="/privacy">Privacidad</a><a href="/terms">Terminos</a><a>Cookies</a></div>
@@ -544,75 +543,263 @@ function LegacyLandingPage() {
   );
 }
 
+const spanishLandingCopy = {
+  mainNav: "Navegacion principal",
+  navProduct: "Producto",
+  navHow: "Como funciona",
+  navIntegrations: "Integraciones",
+  navPricing: "Precios",
+  navResources: "Recursos",
+  navCompany: "Empresa",
+  language: "ES / EN",
+  login: "Ingresar",
+  trial: "Probar gratis",
+  eyebrow: "Plataforma de ventas con IA",
+  heroTitle: "Convierte tus leads en",
+  heroSales: "ventas",
+  heroWithAi: "con",
+  heroAi: "IA",
+  heroText: "Centraliza WhatsApp, Messenger e Instagram, automatiza conversaciones y cierralas mas rapido con inteligencia artificial.",
+  watch: "Ver como funciona",
+  proof: "Equipos que ya venden mas con Magnet",
+  unread: "No leidas",
+  mentions: "@ Menciones",
+  featureTitle: "Inbox unificado",
+  featureText: "Todas tus conversaciones de WhatsApp, Messenger e Instagram en un solo lugar.",
+  botTitle: "Automatizacion con IA",
+  botText: "Responde, califica y da seguimiento automaticamente para que tu equipo se enfoque en cerrar.",
+  reportsTitle: "Mas conversiones",
+  reportsText: "Pipelines visuales, recordatorios y reportes para vender mas cada dia.",
+  howTitle: "Como funciona",
+  connectChannels: "Conecta tus canales",
+  connectText: "Empieza con WhatsApp hoy y deja el resto listo para las proximas integraciones.",
+  automateTitle: "Automatiza con IA",
+  automateText: "La IA conversa, califica y asigna leads automaticamente.",
+  closeTitle: "Cierra mas ventas",
+  closeText: "Tu equipo sigue el pipeline y convierte mas conversaciones cada dia.",
+  integrationsTitle: "Integraciones que te conectan",
+  whatsappIntegration: "Conecta tu numero en minutos.",
+  soon: "Disponible proximamente",
+  activeSoon: "Activo proximamente",
+  pricingTitle: "Precios simples por conversaciones",
+  noContract: "Sin contrato. Cancela cuando quieras.",
+  ctaTitle: "Empieza hoy",
+  ctaSmall: "y convierte mas conversaciones en",
+  ctaText: "Unete a equipos que ya venden mas con Magnet.",
+  freePlan: "Gratis",
+  freePlanText: "Conversaciones gratis desde el registro",
+  basicPlan: "Basico",
+  resources: "Recursos",
+  guidesTitle: "Guias de uso",
+  guidesIntro: "Instrucciones paso a paso para conectar canales y operar Magnet con confianza.",
+  whatsappGuideTitle: "Guia de WhatsApp",
+  whatsappGuideIntro: "Disponible ahora. Sigue estos pasos para crear tu app en Meta y conectar tu nueva SIM card.",
+  whatsappSteps: [
+    "Crea o ingresa a tu cuenta de Meta for Developers.",
+    "Crea una app de tipo Business, selecciona WhatsApp y vinculala a tu Business Manager.",
+    "Agrega el numero de la nueva SIM card, verificalo por SMS o llamada y completa el perfil comercial.",
+    "Genera un token permanente y copia el Phone Number ID y el WhatsApp Business Account ID.",
+    "Ingresa a Magnet, abre Ajustes > Chat > WhatsApp y pega las credenciales.",
+    "Copia la URL de webhook y el token de verificacion de Magnet, luego registralos en Meta for Developers.",
+    "Envia un mensaje de prueba desde otro telefono y confirma que la conversacion entra al inbox de Magnet."
+  ],
+  helpTitle: "Centro de ayuda",
+  helpIntro: "Envia tu solicitud de soporte y nuestro equipo la revisara por correo electronico.",
+  aboutTitle: "Quienes somos",
+  aboutText: "Somos un equipo de desarrolladores y expertos en marketing, ventas y redes sociales. Queremos impulsar a pequenos, medianos y grandes negocios en la gestion de sus leads.",
+  missionTitle: "Mision",
+  missionText: "Hacer mas simple la gestion de leads con tecnologia practica, humana y medible.",
+  visionTitle: "Vision",
+  visionText: "Ser la capa de ventas con IA de confianza para empresas que quieren crecer sin perder el control de sus conversaciones.",
+  valuesTitle: "Valores",
+  valuesText: "Claridad, responsabilidad, automatizacion util, cuidado de datos y obsesion por resultados reales de negocio.",
+  contactTitle: "Contacto",
+  contactIntro: "Tienes una duda, idea o inquietud? Cuentanos que necesitas y te ayudamos a avanzar.",
+  location: "Medellin, Antioquia",
+  contactButton: "Hablar por WhatsApp",
+  supportSubject: "Solicitud de soporte Magnet",
+  contactSubject: "Contacto desde Magnet",
+  send: "Enviar solicitud",
+  name: "Nombre",
+  email: "Correo",
+  company: "Empresa",
+  message: "Mensaje",
+  footerText: "La plataforma de IA para convertir conversaciones en ventas.",
+  product: "Producto",
+  companyLabel: "Empresa",
+  privacy: "Privacidad",
+  terms: "Terminos",
+  cookies: "Cookies"
+};
+
+const englishLandingCopy = {
+  ...spanishLandingCopy,
+  mainNav: "Main navigation",
+  navProduct: "Product",
+  navHow: "How it works",
+  navIntegrations: "Integrations",
+  navPricing: "Pricing",
+  navResources: "Resources",
+  navCompany: "Company",
+  language: "EN / ES",
+  login: "Login",
+  trial: "Try free",
+  eyebrow: "AI sales platform",
+  heroTitle: "Turn your leads into",
+  heroSales: "sales",
+  heroWithAi: "with",
+  heroAi: "AI",
+  heroText: "Centralize WhatsApp, Messenger and Instagram, automate conversations and close faster with artificial intelligence.",
+  watch: "See how it works",
+  proof: "Teams already sell more with Magnet",
+  unread: "Unread",
+  featureTitle: "Unified inbox",
+  featureText: "All your WhatsApp, Messenger and Instagram conversations in one place.",
+  botTitle: "AI automation",
+  botText: "Reply, qualify and follow up automatically so your team can focus on closing.",
+  reportsTitle: "More conversions",
+  reportsText: "Visual pipelines, reminders and reports to sell more every day.",
+  howTitle: "How it works",
+  connectChannels: "Connect your channels",
+  connectText: "Start with WhatsApp today and keep the rest ready for the next integrations.",
+  automateTitle: "Automate with AI",
+  automateText: "AI chats, qualifies and assigns leads automatically.",
+  closeTitle: "Close more sales",
+  closeText: "Your team follows the pipeline and converts more conversations every day.",
+  integrationsTitle: "Integrations that connect you",
+  whatsappIntegration: "Connect your number in minutes.",
+  soon: "Coming soon",
+  activeSoon: "Active soon",
+  pricingTitle: "Simple pricing by conversations",
+  noContract: "No contract. Cancel anytime.",
+  ctaTitle: "Start today",
+  ctaSmall: "and turn more conversations into",
+  ctaText: "Join teams that already sell more with Magnet.",
+  freePlan: "Free",
+  freePlanText: "Free conversations after registration",
+  basicPlan: "Basic",
+  resources: "Resources",
+  guidesTitle: "Usage guides",
+  guidesIntro: "Step-by-step instructions to connect channels and operate Magnet with confidence.",
+  whatsappGuideTitle: "WhatsApp guide",
+  whatsappGuideIntro: "Available now. Follow these steps to create your Meta app and connect your new SIM card.",
+  whatsappSteps: [
+    "Create or log in to your Meta for Developers account.",
+    "Create a Business app, select WhatsApp and link it to your Business Manager.",
+    "Add a phone number for your new SIM card, verify it by SMS or voice call and complete the business profile.",
+    "Generate a permanent access token and copy the Phone Number ID and WhatsApp Business Account ID.",
+    "Enter Magnet, open Settings > Chat > WhatsApp and paste the credentials.",
+    "Copy Magnet's webhook URL and verify token, then register them in Meta for Developers.",
+    "Send a test message from another phone and confirm that the conversation enters the Magnet inbox."
+  ],
+  helpTitle: "Help center",
+  helpIntro: "Send us your support request and our team will review it by email.",
+  aboutTitle: "Who we are",
+  aboutText: "We are a team of developers and experts in marketing, sales and social media. We help small, medium and large businesses manage leads with more clarity, speed and focus.",
+  missionTitle: "Mission",
+  missionText: "Make lead management easier with technology that feels practical, human and measurable.",
+  visionTitle: "Vision",
+  visionText: "Become the trusted AI sales layer for companies that want to grow without losing control of their conversations.",
+  valuesTitle: "Values",
+  valuesText: "Clarity, ownership, useful automation, data care and obsession with real business outcomes.",
+  contactTitle: "Contact",
+  contactIntro: "Have a question, idea or concern? Tell us what you need and we will help you move forward.",
+  location: "Medellin, Antioquia",
+  contactButton: "Talk on WhatsApp",
+  supportSubject: "Magnet support request",
+  contactSubject: "Magnet contact request",
+  send: "Send request",
+  name: "Name",
+  email: "Email",
+  company: "Company",
+  message: "Message",
+  footerText: "The AI platform to turn conversations into sales.",
+  product: "Product",
+  companyLabel: "Company",
+  privacy: "Privacy",
+  terms: "Terms",
+  cookies: "Cookies"
+};
+
 function LandingPage() {
+  const [language, setLanguage] = useState<"es" | "en">("es");
   const appUrl = "https://app.magnetcloud.app/";
+  const whatsappUrl = "https://wa.link/87mlzh";
+  const isEnglish = language === "en";
+  const copy = isEnglish ? englishLandingCopy : spanishLandingCopy;
   const navLinks = [
-    ["Producto", "#producto", true],
-    ["Soluciones", "#soluciones", true],
-    ["Integraciones", "#integraciones", false],
-    ["Precios", "#precios", false],
-    ["Recursos", "#recursos", true]
+    [copy.navProduct, "#producto"],
+    [copy.navHow, "#como-funciona"],
+    [copy.navIntegrations, "#integraciones"],
+    [copy.navPricing, "#precios"],
+    [copy.navResources, "#guias"],
+    [copy.navCompany, "#empresa"]
   ] as const;
   const conversations = [
-    ["/img/icon-whatsapp.png", "whatsapp", "Carla Martínez", "Hola, ¿tienen disponibilidad para hoy?", "ahora", "2"],
-    ["/img/messenger.png", "messenger", "Juan Pérez", "Quiero más información sobre el plan.", "5 min", ""],
-    ["/img/instagram.png", "instagram", "Mariana Gómez", "Perfecto, agendemos una llamada.", "12 min", ""],
-    ["/img/icon-whatsapp.png", "whatsapp", "Andrés López", "¿Me pueden enviar el catálogo?", "25 min", ""]
+    ["/img/icon-whatsapp.png", "whatsapp", "Carla Martinez", "Hola, tienen disponibilidad para hoy?", "ahora", "2"],
+    ["/img/messenger.png", "messenger", "Juan Perez", "Quiero mas informacion sobre el plan.", "5 min", ""],
+    ["/img/instagram.png", "instagram", "Mariana Gomez", "Perfecto, agendemos una llamada.", "12 min", ""],
+    ["/img/icon-whatsapp.png", "whatsapp", "Andres Lopez", "Me pueden enviar el catalogo?", "25 min", ""]
   ] as const;
   const features = [
-    [MessageCircle, "Inbox unificado", "Todas tus conversaciones de WhatsApp, Messenger e Instagram en un solo lugar."],
-    [Bot, "Automatización con IA", "Responde, califica y da seguimiento automáticamente para que tu equipo se enfoque en cerrar."],
-    [BarChart3, "Más conversiones", "Pipelines visuales, recordatorios y reportes para vender más cada día."]
+    [MessageCircle, copy.featureTitle, copy.featureText],
+    [Bot, copy.botTitle, copy.botText],
+    [BarChart3, copy.reportsTitle, copy.reportsText]
   ] as const;
   const steps = [
-    [MessageCircle, "Conecta tus canales", "Integra WhatsApp, Messenger e Instagram en minutos."],
-    [Bot, "Automatiza con IA", "La IA conversa, califica y asigna leads automáticamente."],
-    [BarChart3, "Cierra más ventas", "Tu equipo sigue el pipeline y convierte más cada día."]
+    [MessageCircle, copy.connectChannels, copy.connectText],
+    [Bot, copy.automateTitle, copy.automateText],
+    [BarChart3, copy.closeTitle, copy.closeText]
   ] as const;
   const integrations = [
-    ["/img/icon-whatsapp.png", "WhatsApp", "Conecta tu número en minutos.", false],
-    ["/img/messenger.png", "Messenger", "Disponible proximamente.", true],
-    ["/img/instagram.png", "Instagram", "Disponible proximamente.", true],
-    ["/img/crm-api.png", "WordPress", "Disponible proximamente.", true],
-    ["/img/crm-api.png", "Shopify", "Disponible proximamente.", true]
+    ["/img/icon-whatsapp.png", "WhatsApp", copy.whatsappIntegration, false],
+    ["/img/messenger.png", "Messenger", copy.soon, true],
+    ["/img/instagram.png", "Instagram", copy.soon, true],
+    ["/img/crm-api.png", "WordPress", copy.soon, true],
+    ["/img/crm-api.png", "Shopify", copy.soon, true]
   ] as const;
   const prices = [
-    ["Gratis", "100", "Conversaciones gratis desde el registro", "$0"],
-    ["Básico", "500", "Conversaciones", "$20"],
+    [copy.freePlan, "100", copy.freePlanText, "$0"],
+    [copy.basicPlan, "500", "Conversaciones", "$20"],
     ["Profesional", "1000", "Conversaciones", "$35"],
     ["Avanzado", "2000", "Conversaciones", "$60"]
+  ] as const;
+  const guideCategories = [
+    ["WhatsApp", copy.whatsappGuideIntro, false],
+    ["Messenger", copy.soon, true],
+    ["Instagram", copy.soon, true],
+    ["WordPress", copy.soon, true],
+    ["Shopify", copy.soon, true]
   ] as const;
 
   return (
     <div className="landing-page landing-v2">
       <header className="landing-nav">
         <a className="landing-logo" href="/"><LogoMark /></a>
-        <nav className="landing-menu" aria-label="Navegación principal">
-          {navLinks.map(([label, href, dropdown]) => (
-            <a href={href} key={label}>{label}{dropdown && <ChevronDown size={13} />}</a>
-          ))}
+        <nav className="landing-menu" aria-label={copy.mainNav}>
+          {navLinks.map(([label, href]) => <a href={href} key={label}>{label}</a>)}
         </nav>
         <div className="landing-actions">
           <span>Idioma</span>
-          <button className="language-toggle" type="button">ES / EN</button>
-          <a className="landing-login" href={appUrl}>Iniciar sesión</a>
-          <a className="landing-demo" href={appUrl}>Probar gratis</a>
+          <button className="language-toggle" type="button" onClick={() => setLanguage(isEnglish ? "es" : "en")}>{copy.language}</button>
+          <a className="landing-login" href={appUrl}>{copy.login}</a>
+          <a className="landing-demo" href={appUrl}>{copy.trial}</a>
         </div>
       </header>
 
       <main>
         <section className="landing-hero" id="producto">
           <div className="hero-copy">
-            <div className="eyebrow"><Sparkles size={17} /> Plataforma de ventas con IA</div>
-            <h1>Convierte tus leads en <span>ventas</span> con <span>IA</span></h1>
-            <p>Centraliza WhatsApp, Messenger e Instagram, automatiza conversaciones y ciérralas más rápido con inteligencia artificial.</p>
+            <div className="eyebrow"><Sparkles size={17} /> {copy.eyebrow}</div>
+            <h1>{copy.heroTitle} <span>{copy.heroSales}</span> {copy.heroWithAi} <span>{copy.heroAi}</span></h1>
+            <p>{copy.heroText}</p>
             <div className="hero-actions">
-              <a className="landing-demo big" href={appUrl}><MessageCircle size={20} /> Probar gratis</a>
-              <a className="landing-secondary" href="#como-funciona"><Play size={18} /> Ver cómo funciona</a>
+              <a className="landing-demo big" href={appUrl}><MessageCircle size={20} /> {copy.trial}</a>
+              <a className="landing-secondary" href="#como-funciona"><Play size={18} /> {copy.watch}</a>
             </div>
             <div className="social-proof">
               <div className="avatars"><i>J</i><i>A</i><i>M</i></div>
-              <div><strong>★★★★★</strong><span>Equipos que ya venden más con Magnet</span></div>
+              <div><strong>*****</strong><span>{copy.proof}</span></div>
             </div>
           </div>
 
@@ -626,7 +813,7 @@ function LandingPage() {
               </aside>
               <section>
                 <h3>Inbox</h3>
-                <div className="mock-tabs"><b>Todas <small>12</small></b><span>No leídas 3</span><span>@ Menciones</span></div>
+                <div className="mock-tabs"><b>Todas <small>12</small></b><span>{copy.unread} 3</span><span>{copy.mentions}</span></div>
                 {conversations.map(([icon, channel, name, message, time, badge]) => (
                   <div className="mock-chat" key={name}>
                     <i className={channel}><img src={icon} alt="" aria-hidden="true" /></i>
@@ -641,9 +828,9 @@ function LandingPage() {
                 <span>Leads <b>128</b></span>
                 <span className="active">Calificados <b>64</b></span>
                 <span>Propuesta <b>28</b></span>
-                <span>Negociación <b>18</b></span>
+                <span>Negociacion <b>18</b></span>
                 <span>Cerrados <b>36</b></span>
-                <div className="conversion"><small>Conversión</small><strong>32%</strong><em>↑ 24% vs mes anterior</em><svg viewBox="0 0 160 70" aria-hidden="true"><path d="M4 58 C24 38 34 62 52 40 S82 18 100 30 S128 50 156 8" /></svg></div>
+                <div className="conversion"><small>Conversion</small><strong>32%</strong><em>+24% vs mes anterior</em><svg viewBox="0 0 160 70" aria-hidden="true"><path d="M4 58 C24 38 34 62 52 40 S82 18 100 30 S128 50 156 8" /></svg></div>
               </aside>
             </div>
           </div>
@@ -656,7 +843,7 @@ function LandingPage() {
         </section>
 
         <section className="how-it-works" id="como-funciona">
-          <h2>Cómo funciona</h2>
+          <h2>{copy.howTitle}</h2>
           <div className="steps">
             {steps.map(([Icon, title, text], index) => (
               <article key={title as string}><b>{index + 1}</b><div>{typeof Icon !== "string" && <Icon size={43} />}</div><h3>{title as string}</h3><p>{text as string}</p></article>
@@ -665,20 +852,20 @@ function LandingPage() {
         </section>
 
         <section className="integrations" id="integraciones">
-          <h2>Integraciones que te conectan</h2>
+          <h2>{copy.integrationsTitle}</h2>
           <div>
             {integrations.map(([src, title, text, unavailable]) => (
               <article className={unavailable ? "is-upcoming" : ""} key={title}>
                 <img src={src} alt="" aria-hidden="true" />
                 <span><strong>{title}</strong><small>{text}</small></span>
-                {unavailable && <em>Disponible proximamente</em>}
+                {unavailable && <em>{copy.soon}</em>}
               </article>
             ))}
           </div>
         </section>
 
         <section className="landing-prices" id="precios">
-          <h2>Precios simples por conversaciones</h2>
+          <h2>{copy.pricingTitle}</h2>
           <div>
             {prices.map(([name, count, label, price], index) => (
               <article className={index === 0 ? "featured" : ""} key={name}>
@@ -690,27 +877,104 @@ function LandingPage() {
               </article>
             ))}
           </div>
-          <p className="pricing-note"><Check size={16} /> Sin contrato. Cancela cuando quieras.</p>
+          <p className="pricing-note"><Check size={16} /> {copy.noContract}</p>
         </section>
 
         <section className="cta-band">
           <div>
-            <h2>Empieza hoy <small>y convierte más conversaciones en</small> <span>ventas</span></h2>
-            <p>Únete a equipos que ya venden más con Magnet.</p>
+            <h2>{copy.ctaTitle} <small>{copy.ctaSmall}</small> <span>{copy.heroSales}</span></h2>
+            <p>{copy.ctaText}</p>
           </div>
-          <a className="landing-demo big" href={appUrl}><MessageCircle size={20} /> Probar gratis</a>
+          <a className="landing-demo big" href={appUrl}><MessageCircle size={20} /> {copy.trial}</a>
           <img src="/img/whatsapp.png" alt="WhatsApp Magnet" />
+        </section>
+
+        <section className="resource-section" id="guias">
+          <div className="section-kicker"><Clipboard size={17} /> {copy.resources}</div>
+          <h2>{copy.guidesTitle}</h2>
+          <p>{copy.guidesIntro}</p>
+          <div className="guide-layout">
+            <div className="guide-categories">
+              {guideCategories.map(([title, text, upcoming]) => (
+                <article className={upcoming ? "is-upcoming" : "is-active"} key={title}>
+                  <strong>{title}</strong>
+                  <small>{text}</small>
+                  {upcoming ? <em>{copy.activeSoon}</em> : <span>Activo</span>}
+                </article>
+              ))}
+            </div>
+            <article className="instruction-card">
+              <h3>{copy.whatsappGuideTitle}</h3>
+              <p>{copy.whatsappGuideIntro}</p>
+              <ol>
+                {copy.whatsappSteps.map((step) => <li key={step}>{step}</li>)}
+              </ol>
+              <a className="landing-secondary" href="https://developers.facebook.com/apps/" target="_blank" rel="noreferrer">Meta for Developers</a>
+            </article>
+          </div>
+        </section>
+
+        <section className="support-section" id="ayuda">
+          <div>
+            <div className="section-kicker"><MessageCircle size={17} /> {copy.helpTitle}</div>
+            <h2>{copy.helpTitle}</h2>
+            <p>{copy.helpIntro}</p>
+          </div>
+          <form className="resource-form" action="mailto:info@k1n0.dev" method="post" encType="text/plain">
+            <input type="hidden" name="subject" value={copy.supportSubject} />
+            <label>{copy.name}<input name="name" required /></label>
+            <label>{copy.email}<input name="email" type="email" required /></label>
+            <label>{copy.company}<input name="company" /></label>
+            <label>{copy.message}<textarea name="message" rows={5} required /></label>
+            <button className="landing-demo" type="submit"><Send size={17} /> {copy.send}</button>
+          </form>
+        </section>
+
+        <section className="company-section" id="empresa">
+          <div className="section-kicker"><Users size={17} /> {copy.companyLabel}</div>
+          <h2>{copy.aboutTitle}</h2>
+          <p>{copy.aboutText}</p>
+          <div className="company-values">
+            {[
+              [Target, copy.missionTitle, copy.missionText],
+              [Sparkles, copy.visionTitle, copy.visionText],
+              [ShieldCheck, copy.valuesTitle, copy.valuesText]
+            ].map(([Icon, title, text]) => (
+              <article key={title as string}>{typeof Icon !== "string" && <Icon size={28} />}<h3>{title as string}</h3><p>{text as string}</p></article>
+            ))}
+          </div>
+        </section>
+
+        <section className="contact-section" id="contacto">
+          <div className="contact-copy">
+            <div className="section-kicker"><MessageCircle size={17} /> {copy.contactTitle}</div>
+            <h2>{copy.contactTitle}</h2>
+            <p>{copy.contactIntro}</p>
+            <address>
+              <span>{copy.location}</span>
+              <a href="tel:+573015336792">+57 301 533 6792</a>
+              <a href="mailto:info@k1n0.dev">info@k1n0.dev</a>
+            </address>
+            <a className="landing-demo big" href={whatsappUrl} target="_blank" rel="noreferrer"><MessageCircle size={20} /> {copy.contactButton}</a>
+          </div>
+          <form className="resource-form" action="mailto:info@k1n0.dev" method="post" encType="text/plain">
+            <input type="hidden" name="subject" value={copy.contactSubject} />
+            <label>{copy.name}<input name="name" required /></label>
+            <label>{copy.email}<input name="email" type="email" required /></label>
+            <label>{copy.company}<input name="company" /></label>
+            <label>{copy.message}<textarea name="message" rows={5} required /></label>
+            <button className="landing-demo" type="submit"><Send size={17} /> {copy.send}</button>
+          </form>
         </section>
       </main>
 
       <footer className="landing-footer" id="recursos">
-        <div><LogoMark /><p>La plataforma de IA para convertir conversaciones en ventas.</p><span className="social-icons">◉ ◉ ◉ ◉</span></div>
-        <nav><strong>Producto</strong><a href="#producto">Inbox</a><a href="#soluciones">Automatizaciones</a><a href="#precios">Reportes</a></nav>
-        <nav><strong>Soluciones</strong><a>Ventas</a><a>Atención al cliente</a><a>E-commerce</a><a>Agencias</a></nav>
-        <nav><strong>Recursos</strong><a>Blog</a><a>Guías</a><a>Webinars</a><a>Centro de ayuda</a></nav>
-        <nav><strong>Empresa</strong><a>Quiénes somos</a><a>Carreras</a><a>Contacto</a><a href={appUrl}>Ingresar</a></nav>
-        <small>© 2024 Magnet. Todos los derechos reservados.</small>
-        <div className="legal-links"><a href="/privacy">Privacidad</a><a href="/terms">Términos</a><a>Cookies</a></div>
+        <div><LogoMark /><p>{copy.footerText}</p><a className="whatsapp-footer" href={whatsappUrl} target="_blank" rel="noreferrer">{copy.contactButton}</a></div>
+        <nav><strong>{copy.product}</strong><a href="#producto">Inbox</a><a href="#como-funciona">Automatizaciones</a><a href="#precios">Reportes</a></nav>
+        <nav><strong>{copy.resources}</strong><a href="#guias">{copy.guidesTitle}</a><a href="#ayuda">{copy.helpTitle}</a></nav>
+        <nav><strong>{copy.companyLabel}</strong><a href="#empresa">{copy.aboutTitle}</a><a href="#contacto">{copy.contactTitle}</a><a href={appUrl}>{copy.login}</a></nav>
+        <small>© 2026 Magnet. Todos los derechos reservados.</small>
+        <div className="legal-links"><a href="/privacy">{copy.privacy}</a><a href="/terms">{copy.terms}</a><a>{copy.cookies}</a></div>
       </footer>
     </div>
   );

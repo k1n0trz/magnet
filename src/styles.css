@@ -2181,6 +2181,10 @@ button:not(:disabled):hover,
 .landing-v2 .integrations,
 .landing-v2 .landing-prices,
 .landing-v2 .cta-band,
+.landing-v2 .resource-section,
+.landing-v2 .support-section,
+.landing-v2 .company-section,
+.landing-v2 .contact-section,
 .landing-v2 .landing-footer {
   width: min(1370px, calc(100% - 72px));
 }
@@ -2658,8 +2662,223 @@ button:not(:disabled):hover,
   width: 116px;
 }
 
+.landing-v2 .resource-section,
+.landing-v2 .support-section,
+.landing-v2 .company-section,
+.landing-v2 .contact-section {
+  margin: 58px auto 0;
+}
+
+.landing-v2 .resource-section,
+.landing-v2 .company-section {
+  padding: 52px 0 0;
+}
+
+.landing-v2 .resource-section > h2,
+.landing-v2 .support-section h2,
+.landing-v2 .company-section > h2,
+.landing-v2 .contact-section h2 {
+  margin: 12px 0 16px;
+  color: #f5fbf7;
+  font-size: 36px;
+  line-height: 1.12;
+}
+
+.landing-v2 .resource-section > p,
+.landing-v2 .support-section p,
+.landing-v2 .company-section > p,
+.landing-v2 .contact-section p {
+  max-width: 760px;
+  color: #b8c6c4;
+  font-size: 17px;
+  line-height: 1.7;
+}
+
+.landing-v2 .section-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.landing-v2 .guide-layout,
+.landing-v2 .support-section,
+.landing-v2 .contact-section {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.82fr) minmax(420px, 1.18fr);
+  gap: 28px;
+  align-items: start;
+}
+
+.landing-v2 .guide-layout {
+  margin-top: 28px;
+}
+
+.landing-v2 .guide-categories,
+.landing-v2 .company-values {
+  display: grid;
+  gap: 14px;
+}
+
+.landing-v2 .guide-categories article,
+.landing-v2 .instruction-card,
+.landing-v2 .resource-form,
+.landing-v2 .company-values article,
+.landing-v2 .contact-copy {
+  border: 1px solid rgba(187, 221, 214, 0.16);
+  border-radius: 10px;
+  background: linear-gradient(145deg, rgba(15, 29, 38, 0.9), rgba(5, 15, 22, 0.95));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+}
+
+.landing-v2 .guide-categories article {
+  min-height: 112px;
+  display: grid;
+  gap: 8px;
+  padding: 20px;
+}
+
+.landing-v2 .guide-categories strong,
+.landing-v2 .instruction-card h3,
+.landing-v2 .company-values h3 {
+  color: #f6fbf8;
+}
+
+.landing-v2 .guide-categories small,
+.landing-v2 .instruction-card p,
+.landing-v2 .instruction-card li,
+.landing-v2 .company-values p {
+  color: #b8c6c4;
+  line-height: 1.62;
+}
+
+.landing-v2 .guide-categories span,
+.landing-v2 .guide-categories em,
+.landing-v2 .integrations em {
+  width: fit-content;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.landing-v2 .guide-categories span {
+  color: #06110a;
+  background: var(--green);
+}
+
+.landing-v2 .guide-categories em,
+.landing-v2 .integrations em {
+  color: #c9d4d1;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.landing-v2 .instruction-card {
+  padding: 30px;
+}
+
+.landing-v2 .instruction-card h3 {
+  margin: 0 0 12px;
+  font-size: 25px;
+}
+
+.landing-v2 .instruction-card ol {
+  margin: 22px 0 24px;
+  padding-left: 22px;
+}
+
+.landing-v2 .instruction-card li + li {
+  margin-top: 12px;
+}
+
+.landing-v2 .support-section,
+.landing-v2 .contact-section {
+  padding: 42px;
+  border: 1px solid rgba(190, 226, 218, 0.18);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(18, 215, 98, 0.12), transparent 22rem),
+    rgba(5, 14, 21, 0.65);
+}
+
+.landing-v2 .resource-form {
+  display: grid;
+  gap: 14px;
+  padding: 24px;
+}
+
+.landing-v2 .resource-form label {
+  display: grid;
+  gap: 8px;
+  color: #dbe7e4;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.landing-v2 .resource-form input,
+.landing-v2 .resource-form textarea {
+  width: 100%;
+  border: 1px solid rgba(190, 226, 218, 0.18);
+  border-radius: 8px;
+  background: rgba(2, 10, 15, 0.72);
+  color: #f6fbf8;
+  font: inherit;
+  padding: 13px 14px;
+  outline: none;
+}
+
+.landing-v2 .resource-form textarea {
+  resize: vertical;
+}
+
+.landing-v2 .resource-form input:focus,
+.landing-v2 .resource-form textarea:focus {
+  border-color: rgba(18, 215, 98, 0.7);
+  box-shadow: 0 0 0 3px rgba(18, 215, 98, 0.12);
+}
+
+.landing-v2 .company-values {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 26px;
+}
+
+.landing-v2 .company-values article {
+  min-height: 218px;
+  padding: 26px;
+}
+
+.landing-v2 .company-values svg {
+  color: var(--green);
+}
+
+.landing-v2 .contact-copy {
+  padding: 28px;
+}
+
+.landing-v2 .contact-copy address {
+  display: grid;
+  gap: 10px;
+  margin: 22px 0;
+  color: #d5e0dd;
+  font-style: normal;
+}
+
+.landing-v2 .contact-copy address a {
+  color: #d5e0dd;
+}
+
+.landing-v2 .whatsapp-footer {
+  color: var(--green);
+  font-weight: 900;
+}
+
 .landing-v2 .landing-footer {
-  grid-template-columns: 1.55fr repeat(4, 1fr);
+  grid-template-columns: 1.55fr repeat(3, 1fr);
   gap: 48px;
   padding-top: 24px;
   border-top: 1px solid rgba(190, 226, 218, 0.2);
@@ -2919,6 +3138,10 @@ button:not(:disabled):hover,
   .landing-v2 .integrations,
   .landing-v2 .landing-prices,
   .landing-v2 .cta-band,
+  .landing-v2 .resource-section,
+  .landing-v2 .support-section,
+  .landing-v2 .company-section,
+  .landing-v2 .contact-section,
   .landing-v2 .landing-footer {
     width: min(1120px, calc(100% - 48px));
   }
@@ -2932,8 +3155,7 @@ button:not(:disabled):hover,
     gap: 18px;
   }
 
-  .landing-v2 .landing-actions > span,
-  .landing-v2 .language-toggle {
+  .landing-v2 .landing-actions > span {
     display: none;
   }
 
@@ -2998,6 +3220,10 @@ button:not(:disabled):hover,
   .landing-v2 .integrations,
   .landing-v2 .landing-prices,
   .landing-v2 .cta-band,
+  .landing-v2 .resource-section,
+  .landing-v2 .support-section,
+  .landing-v2 .company-section,
+  .landing-v2 .contact-section,
   .landing-v2 .landing-footer {
     width: min(760px, calc(100% - 32px));
   }
@@ -3010,16 +3236,16 @@ button:not(:disabled):hover,
     display: none;
   }
 
-  .landing-v2 .landing-login {
-    display: none;
-  }
-
   .landing-v2 .landing-hero,
   .landing-v2 .feature-cards,
   .landing-v2 .steps,
   .landing-v2 .integrations > div,
   .landing-v2 .landing-prices > div,
   .landing-v2 .cta-band,
+  .landing-v2 .guide-layout,
+  .landing-v2 .support-section,
+  .landing-v2 .company-values,
+  .landing-v2 .contact-section,
   .landing-v2 .landing-footer {
     grid-template-columns: 1fr;
   }
@@ -3069,6 +3295,11 @@ button:not(:disabled):hover,
     display: none;
   }
 
+  .landing-v2 .support-section,
+  .landing-v2 .contact-section {
+    padding: 30px;
+  }
+
   .landing-v2 .landing-footer small,
   .landing-v2 .legal-links {
     grid-column: auto;
@@ -3083,12 +3314,19 @@ button:not(:disabled):hover,
   .landing-v2 .integrations,
   .landing-v2 .landing-prices,
   .landing-v2 .cta-band,
+  .landing-v2 .resource-section,
+  .landing-v2 .support-section,
+  .landing-v2 .company-section,
+  .landing-v2 .contact-section,
   .landing-v2 .landing-footer {
     width: calc(100% - 24px);
   }
 
   .landing-v2 .landing-nav {
-    min-height: 72px;
+    min-height: 118px;
+    grid-template-columns: 1fr;
+    align-content: center;
+    gap: 12px;
   }
 
   .landing-v2 .landing-logo,
@@ -3097,13 +3335,25 @@ button:not(:disabled):hover,
   }
 
   .landing-v2 .landing-demo,
+  .landing-v2 .landing-login,
+  .landing-v2 .language-toggle,
   .landing-v2 .landing-secondary {
     min-height: 47px;
-    padding: 0 16px;
+    padding: 0 14px;
   }
 
   .landing-v2 .landing-actions {
-    gap: 0;
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .landing-v2 .landing-actions a,
+  .landing-v2 .landing-actions button {
+    width: 100%;
+    min-width: 0;
+    font-size: 12px;
   }
 
   .landing-v2 .hero-copy h1 {
@@ -3192,6 +3442,14 @@ button:not(:disabled):hover,
 
   .landing-v2 .cta-band {
     padding: 28px 22px;
+  }
+
+  .landing-v2 .support-section,
+  .landing-v2 .contact-section,
+  .landing-v2 .instruction-card,
+  .landing-v2 .resource-form,
+  .landing-v2 .contact-copy {
+    padding: 22px;
   }
 
   .landing-v2 .cta-band h2 {

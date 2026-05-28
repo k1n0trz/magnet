@@ -9,3 +9,4 @@ npm-debug.log
 data/
 qa-*.png
 preview.*.log
+dist.zip

@@ -11,6 +11,7 @@ dist/
 npm-debug.log*
 
 qa-*.png
+dist.zip
 
 .domain-contact.yaml
 data/
