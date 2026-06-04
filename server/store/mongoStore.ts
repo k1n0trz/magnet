@@ -298,9 +298,15 @@ function createMongoStore(): Store {
       return message;
     },
     async updateMessageStatus(input) {
+      const patch = {
+        status: input.status,
+        statusUpdatedAt: now(),
+        ...(input.error ? { error: input.error } : {}),
+        ...(input.errorCode ? { errorCode: input.errorCode } : {})
+      };
       const doc = await MessageModel.findOneAndUpdate(
         { assistantId: input.assistantId, channelMessageId: input.channelMessageId },
-        { $set: { status: input.status, statusUpdatedAt: now() } },
+        { $set: patch },
         { new: true }
       ).lean();
       return doc ? clean<Message>(doc) : undefined;

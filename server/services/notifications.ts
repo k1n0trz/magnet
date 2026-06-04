@@ -1,5 +1,5 @@
 import { createWhatsAppHandler } from "../handlers/whatsapp";
-import type { Assistant, Contact, Conversation, Message, Store } from "../types";
+import type { Assistant, Contact, Conversation, Message, Organization, Store, User } from "../types";
 
 export async function notifyNewConversation(store: Store, assistant: Assistant, conversation: Conversation, contact: Contact, inbound: Message) {
   if (assistant.operations?.newConversationAlertsEnabled === false) return;
@@ -35,6 +35,61 @@ export async function notifyNewConversation(store: Store, assistant: Assistant, 
       payload: { email: owner.email, error: result.error }
     });
   }
+}
+
+export async function notifyNewUserRegistration(store: Store, user: User, organization: Organization) {
+  const admins = (await store.listUsers()).filter((item) => ["admin", "superadmin"].includes(item.role));
+  const assistant = await notificationAssistant(store);
+  const body = [
+    "Nuevo usuario en MAGNET",
+    `Nombre: ${user.name}`,
+    `Correo: ${user.email}`,
+    `Organizacion: ${organization.name}`,
+    `Plan: ${organization.planType || "Gratis"}`
+  ].join("\n");
+
+  for (const admin of admins) {
+    if (admin.phone && assistant?.channels.whatsapp?.enabled) {
+      try {
+        const sent = await createWhatsAppHandler().sendMessage(assistant.channels.whatsapp, admin.phone, body);
+        await store.addEvent({
+          assistantId: assistant.id,
+          contactId: "",
+          conversationId: "",
+          type: sent.error ? "new_user_whatsapp_alert_failed" : "new_user_whatsapp_alert_sent",
+          payload: { userId: user.id, email: user.email, phone: admin.phone, messageId: sent.messageId, error: sent.error }
+        });
+      } catch (error) {
+        await store.addEvent({
+          assistantId: assistant.id,
+          contactId: "",
+          conversationId: "",
+          type: "new_user_whatsapp_alert_failed",
+          payload: { userId: user.id, email: user.email, phone: admin.phone, error: String(error) }
+        });
+      }
+    }
+
+    if (admin.email) {
+      const result = await sendEmail(admin.email, "Nuevo usuario en MAGNET", body);
+      if (assistant) {
+        await store.addEvent({
+          assistantId: assistant.id,
+          contactId: "",
+          conversationId: "",
+          type: result.sent ? "new_user_email_alert_sent" : "new_user_email_alert_pending",
+          payload: { userId: user.id, email: user.email, adminEmail: admin.email, error: result.error }
+        });
+      }
+    }
+  }
+}
+
+async function notificationAssistant(store: Store) {
+  const preferredId = process.env.MAGNET_LEGACY_ASSISTANT_ID || "";
+  const preferred = preferredId ? await store.getAssistant(preferredId) : undefined;
+  if (preferred?.channels.whatsapp?.enabled) return preferred;
+  return (await store.listAssistants()).find((assistant) => assistant.channels.whatsapp?.enabled);
 }
 
 async function sendEmail(to: string, subject: string, text: string) {

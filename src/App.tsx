@@ -186,8 +186,20 @@ interface Message {
   mediaMimeType?: string;
   referral?: MetaReferral;
   status: string;
+  error?: string;
+  errorCode?: string;
   timestamp: string;
   channel?: ChannelType;
+}
+
+interface LeadEvent {
+  id: string;
+  assistantId: string;
+  contactId?: string;
+  conversationId?: string;
+  type: string;
+  payload?: Record<string, unknown>;
+  createdAt: string;
 }
 
 interface Trigger {
@@ -300,6 +312,7 @@ interface Bootstrap {
   contacts: Contact[];
   conversations: Conversation[];
   messages: Message[];
+  events: LeadEvent[];
   triggers: Trigger[];
   templates: Template[];
   tags: TagItem[];
@@ -1486,6 +1499,7 @@ function MagnetPanel() {
   const contacts = data?.contacts || [];
   const conversations = data?.conversations || [];
   const messages = data?.messages || [];
+  const events = data?.events || [];
   const triggers = data?.triggers || [];
   const templates = data?.templates || [];
   const tags = data?.tags || [];
@@ -1861,6 +1875,7 @@ function MagnetPanel() {
             conversations={conversations}
             messages={conversationMessages}
             allMessages={messages}
+            events={events}
             tags={tags}
             selectedConversationId={selectedConversation?.id || ""}
             selectedContact={selectedContact}
@@ -2129,6 +2144,7 @@ type ConversationFilter = {
   search: string;
   tag: string;
   status: string;
+  channel: string;
   automation: string;
   unread: boolean;
   date: string;
@@ -2139,6 +2155,7 @@ function Chat(props: {
   conversations: Conversation[];
   messages: Message[];
   allMessages: Message[];
+  events: LeadEvent[];
   tags: TagItem[];
   selectedConversationId: string;
   selectedContact?: Contact;
@@ -2153,16 +2170,22 @@ function Chat(props: {
     search: "",
     tag: "",
     status: "",
+    channel: "",
     automation: "",
     unread: false,
     date: ""
   });
   const selectedConversation = props.conversations.find((conversation) => conversation.id === props.selectedConversationId);
   const selectedMessages = props.messages;
-  const selectedHasError = conversationNeedsReview(selectedMessages);
+  const selectedEvents = props.events.filter((event) => event.conversationId === selectedConversation?.id);
+  const selectedIssues = conversationIssues(selectedMessages, selectedEvents);
+  const selectedHasError = selectedIssues.length > 0;
   const selectedTags = uniqueDisplayTags([...(selectedConversation?.tags || []), ...(props.selectedContact?.tags || [])]).slice(0, 4);
   const selectedWasHandledByBot = selectedConversation?.botEnabled || selectedMessages.some((message) => message.sender === "assistant");
   const selectedReferral = selectedConversation?.referral || selectedMessages.find((message) => message.referral)?.referral;
+  const selectedLastMessage = selectedMessages[selectedMessages.length - 1];
+  const selectedChannel = selectedConversation ? channelFromConversation(selectedConversation, props.selectedContact, selectedLastMessage) : "whatsapp";
+  const selectedSource = selectedConversation ? sourceFromConversation(selectedConversation, props.selectedContact, selectedLastMessage) : "";
   const assignTag = (tagName: string) => {
     if (!selectedConversation || !tagName) return;
     props.onUpdateConversation(selectedConversation.id, { tags: uniqueDisplayTags([...(selectedConversation.tags || []), ...(props.selectedContact?.tags || []), tagName]) });
@@ -2170,6 +2193,7 @@ function Chat(props: {
   const renderThread = (threadMessages: Message[], referral?: MetaReferral) => (
     <div className="chat-thread">
       {referral && <ReferralCard referral={referral} />}
+      {selectedIssues.length > 0 && <ConversationIssuePanel issues={selectedIssues} />}
       {threadMessages.length === 0 && (
         <div className="chat-empty">
           <Bot size={48} />
@@ -2185,7 +2209,7 @@ function Chat(props: {
           <small>
             <span>{formatTime(message.timestamp)}</span>
             {message.sender === "assistant" && <span className="mini-chip"><Bot size={12} />Bot</span>}
-            {message.status === "failed" && <span className="mini-chip danger"><AlertTriangle size={12} />Error</span>}
+            {message.status === "failed" && <span className="mini-chip danger" title={message.error || receiptTitle(message.status)}><AlertTriangle size={12} />Error</span>}
             {message.direction === "outbound" && (
               <span className={`receipt ${message.status}`} title={receiptTitle(message.status)}>
                 <CheckCheck size={14} />
@@ -2217,14 +2241,16 @@ function Chat(props: {
       const tagList = uniqueDisplayTags([...(conversation.tags || []), ...(contact?.tags || []), ...autoTags]);
       const lastMessage = messages[messages.length - 1];
       const channel = channelFromConversation(conversation, contact, lastMessage);
+      const source = sourceFromConversation(conversation, contact, lastMessage);
       const isUnread = lastMessage?.direction === "inbound" && lastMessage.status === "received";
-      const searchable = `${contact?.name || ""} ${contact?.phone || ""} ${conversation.lastMessage} ${tagList.join(" ")}`.toLowerCase();
-      return { conversation, contact, messages, tagList, lastMessage, isUnread, searchable, channel };
+      const searchable = `${contact?.name || ""} ${contact?.phone || ""} ${source} ${conversation.lastMessage} ${tagList.join(" ")}`.toLowerCase();
+      return { conversation, contact, messages, tagList, lastMessage, isUnread, searchable, channel, source };
     })
     .filter((item) => {
       if (filters.search && !item.searchable?.includes(filters.search.toLowerCase())) return false;
       if (filters.tag && !item.tagList.includes(filters.tag)) return false;
       if (filters.status && item.conversation.status !== filters.status) return false;
+      if (filters.channel && item.channel !== filters.channel) return false;
       if (filters.automation === "bot" && !item.conversation.botEnabled) return false;
       if (filters.automation === "human" && item.conversation.assignedTo !== "human") return false;
       if (filters.unread && !item.isUnread) return false;
@@ -2238,6 +2264,7 @@ function Chat(props: {
       <section className="chat-panel">
         <div className="chat-header">
           <div><strong>{props.selectedContact?.name || "Selecciona una conversación"}</strong><span>{props.selectedContact?.phone}</span></div>
+          {selectedConversation && <ChannelBadge channel={selectedChannel} source={selectedSource} />}
           {selectedTags.length > 0 && (
             <div className="contact-tags">
               {selectedTags.map((tag) => <i key={tag}>{labelFromTag(tag)}</i>)}
@@ -2260,7 +2287,7 @@ function Chat(props: {
       <aside className="conversation-list">
         <div className="searchbar"><Search size={18} /><input value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Buscar lead o conversación" /></div>
         <div className="filters chat-filter-row">
-          <button className={!filters.tag && !filters.status && !filters.automation && !filters.unread && !filters.date ? "active" : ""} onClick={() => setFilters({ search: filters.search, tag: "", status: "", automation: "", unread: false, date: "" })}>Todos</button>
+          <button className={!filters.tag && !filters.status && !filters.channel && !filters.automation && !filters.unread && !filters.date ? "active" : ""} onClick={() => setFilters({ search: filters.search, tag: "", status: "", channel: "", automation: "", unread: false, date: "" })}>Todos</button>
           <button className={filters.automation === "bot" ? "active" : ""} onClick={() => setFilters({ ...filters, automation: filters.automation === "bot" ? "" : "bot" })}>Bot</button>
           <button className={filters.automation === "human" ? "active" : ""} onClick={() => setFilters({ ...filters, automation: filters.automation === "human" ? "" : "human" })}>Humano</button>
           <button className={filtersOpen ? "active" : ""} onClick={() => setFiltersOpen(!filtersOpen)}><Filter size={16} /></button>
@@ -2269,14 +2296,16 @@ function Chat(props: {
           <div className="filter-menu">
             <Field label="Etiqueta"><select value={filters.tag} onChange={(event) => setFilters({ ...filters, tag: event.target.value })}><option value="">Todas</option>{props.tags.map((tag) => <option key={tag.id} value={tag.name}>{tag.name}</option>)}</select></Field>
             <Field label="Estado"><select value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}><option value="">Todos</option>{leadStatuses.map((status) => <option key={status}>{status}</option>)}</select></Field>
+            <Field label="Canal"><select value={filters.channel} onChange={(event) => setFilters({ ...filters, channel: event.target.value })}><option value="">Todos</option>{visibleChannelTypes.map((channelId) => <option key={channelId} value={channelId}>{channelMeta[channelId].label}</option>)}</select></Field>
             <Field label="Automatización"><select value={filters.automation} onChange={(event) => setFilters({ ...filters, automation: event.target.value })}><option value="">Todas</option><option value="bot">Bot activo</option><option value="human">Humano</option></select></Field>
             <Field label="Fecha"><input type="date" value={filters.date} onChange={(event) => setFilters({ ...filters, date: event.target.value })} /></Field>
             <label className="check-row"><input type="checkbox" checked={filters.unread} onChange={(event) => setFilters({ ...filters, unread: event.target.checked })} /> Mensajes no leídos</label>
-            <button className="secondary" onClick={() => setFilters({ search: filters.search, tag: "", status: "", automation: "", unread: false, date: "" })}>Limpiar filtros</button>
+            <button className="secondary" onClick={() => setFilters({ search: filters.search, tag: "", status: "", channel: "", automation: "", unread: false, date: "" })}>Limpiar filtros</button>
           </div>
         )}
-        {filteredConversations.map(({ conversation, contact, messages, tagList, lastMessage, isUnread, channel }) => {
-          const hasError = conversationNeedsReview(messages);
+        {filteredConversations.map(({ conversation, contact, messages, tagList, lastMessage, isUnread, channel, source }) => {
+          const issues = conversationIssues(messages, props.events.filter((event) => event.conversationId === conversation.id));
+          const hasError = issues.length > 0;
           const wasHandledByBot = conversation.botEnabled || messages.some((message) => message.sender === "assistant");
           const visibleTags = tagList.slice(0, 3);
           const isSelected = conversation.id === props.selectedConversationId;
@@ -2289,7 +2318,7 @@ function Chat(props: {
               >
                 <div className="conversation-top">
                   <strong>{contact?.name || "Contacto"}</strong>
-                  <img className="channel-icon" src={channelMeta[channel].icon} alt={channelMeta[channel].shortLabel} title={channelMeta[channel].label} />
+                  <ChannelBadge channel={channel} source={source} compact />
                   <span>{formatShortDate(conversation.lastMessageAt)}</span>
                 </div>
                 <div className="conversation-preview">
@@ -2307,7 +2336,7 @@ function Chat(props: {
                   </div>
                   <div className="conversation-icons">
                     {wasHandledByBot && <Bot size={15} />}
-                    {hasError && <AlertTriangle size={15} />}
+                    {hasError && <span className="issue-count" title={issues[0]?.detail}><AlertTriangle size={15} />{issues.length}</span>}
                     <ChevronDown className="conversation-chevron" size={16} />
                   </div>
                 </div>
@@ -2381,6 +2410,38 @@ function ReferralCard({ referral }: { referral: MetaReferral }) {
   );
 }
 
+type ConversationIssue = {
+  id: string;
+  label: string;
+  detail: string;
+  createdAt: string;
+  severity: "warning" | "danger";
+};
+
+function ConversationIssuePanel({ issues }: { issues: ConversationIssue[] }) {
+  return (
+    <div className="issue-panel">
+      <strong><AlertTriangle size={15} /> Incidencias detectadas</strong>
+      {issues.map((issue) => (
+        <div className={`issue-row ${issue.severity}`} key={issue.id}>
+          <span>{issue.label}</span>
+          <small>{issue.detail}</small>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ChannelBadge({ channel, source, compact = false }: { channel: VisibleChannelType; source: string; compact?: boolean }) {
+  const meta = channelMeta[channel];
+  return (
+    <span className={`channel-badge ${compact ? "compact" : ""}`} title={source || meta.label}>
+      <img src={meta.icon} alt="" aria-hidden="true" />
+      <span>{compact ? meta.shortLabel : source || meta.label}</span>
+    </span>
+  );
+}
+
 function deriveConversationTags(conversation: Conversation, _contact: Contact | undefined, messages: Message[]) {
   const lastText = `${conversation.lastMessage} ${messages[messages.length - 1]?.text || ""}`.toLowerCase();
   const tags: string[] = [];
@@ -2403,6 +2464,72 @@ function conversationNeedsReview(messages: Message[]) {
   });
 }
 
+function conversationIssues(messages: Message[], events: LeadEvent[]) {
+  const issues: ConversationIssue[] = [];
+  const lastRecoveryAt = Math.max(
+    0,
+    ...messages
+      .filter((message) => message.direction === "outbound" && ["sent", "delivered", "read"].includes(message.status))
+      .map((message) => new Date(message.timestamp || "").getTime())
+      .filter(Number.isFinite)
+  );
+  for (const message of messages) {
+    if (message.status !== "failed") continue;
+    const failedAt = new Date(message.timestamp || "").getTime();
+    if (Number.isFinite(failedAt) && failedAt < lastRecoveryAt) continue;
+    issues.push({
+      id: `message-${message.id}`,
+      label: "Mensaje fallido",
+      detail: message.error || message.errorCode || receiptTitle(message.status),
+      createdAt: message.timestamp,
+      severity: "danger"
+    });
+  }
+
+  for (const event of events) {
+    if (!/failed|exhausted|pending/i.test(event.type)) continue;
+    const eventAt = new Date(event.createdAt || "").getTime();
+    if (Number.isFinite(eventAt) && eventAt < lastRecoveryAt) continue;
+    issues.push({
+      id: `event-${event.id}`,
+      label: eventIssueLabel(event.type),
+      detail: eventIssueDetail(event),
+      createdAt: event.createdAt,
+      severity: /failed|exhausted/i.test(event.type) ? "danger" : "warning"
+    });
+  }
+
+  const seen = new Set<string>();
+  return issues
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .filter((issue) => {
+      const key = `${issue.label}:${issue.detail}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 4);
+}
+
+function eventIssueLabel(type: string) {
+  const labels: Record<string, string> = {
+    message_delivery_failed: "Entrega fallida",
+    message_credit_exhausted: "Creditos agotados",
+    conversation_credit_exhausted: "Creditos agotados",
+    new_conversation_whatsapp_alert_failed: "Alerta WhatsApp fallida",
+    new_user_whatsapp_alert_failed: "Alerta nuevo usuario fallida",
+    new_conversation_email_alert_pending: "Alerta email pendiente",
+    new_user_email_alert_pending: "Alerta email pendiente"
+  };
+  return labels[type] || labelFromTag(type);
+}
+
+function eventIssueDetail(event: LeadEvent) {
+  const payload = event.payload || {};
+  const raw = payload.error || payload.errorCode || payload.messageId || payload.channel || payload.reason;
+  return raw ? String(raw) : "Revisa la configuracion del canal y los logs del evento.";
+}
+
 function uniqueDisplayTags(tags: Array<string | undefined>) {
   const blocked = new Set(["whatsapp", "instagram", "messenger", "wordpress", "web", "internet"]);
   const seen = new Set<string>();
@@ -2423,6 +2550,17 @@ function channelFromConversation(conversation: Conversation, contact?: Contact, 
   if (raw.includes("messenger") || raw.includes("facebook")) return "messenger";
   if (raw.includes("wordpress") || raw.includes("woocommerce") || raw.includes("web") || raw.includes("internet")) return "wordpress";
   return "whatsapp";
+}
+
+function sourceFromConversation(conversation: Conversation, contact?: Contact, lastMessage?: Message) {
+  if (conversation.referral || contact?.referral || lastMessage?.referral) return "Meta Ads";
+  const raw = String(contact?.source || lastMessage?.channel || conversation.tags?.[0] || "").trim();
+  if (!raw) return channelMeta[channelFromConversation(conversation, contact, lastMessage)].label;
+  if (/^whatsapp$/i.test(raw)) return "WhatsApp";
+  if (/^(wordpress|woocommerce|web|internet)$/i.test(raw)) return "Web / WordPress";
+  if (/^instagram$/i.test(raw)) return "Instagram";
+  if (/^(messenger|facebook)$/i.test(raw)) return "Messenger";
+  return labelFromTag(raw);
 }
 
 function formatTime(value: string) {

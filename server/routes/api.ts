@@ -7,6 +7,7 @@ import { decryptSecret } from "../lib/crypto";
 import { isValidReferenceAssistantId } from "../lib/validation";
 import { generateAssistantReply } from "../services/ai";
 import { fetchWhatsAppMedia } from "../services/audio";
+import { notifyNewUserRegistration } from "../services/notifications";
 import { sendWhatsAppText } from "../services/whatsapp";
 import { buildContactsWorkbook } from "../services/xlsx";
 import type { Assistant, ChannelSettings, ChannelType, LeadStatus, MessagePackage, Store, User } from "../types";
@@ -122,6 +123,7 @@ export function apiRouter(store: Store, runtime: RuntimeStatus) {
       description: "Free trial messages on first registration",
       metadata: { source: "signup" }
     });
+    void notifyNewUserRegistration(store, user, await store.getOrganization(organization.id) || organization);
 
     res.status(201).json({ token: signToken(user), user: publicUser(user), organization: await store.getOrganization(organization.id) });
   });
@@ -191,6 +193,7 @@ export function apiRouter(store: Store, runtime: RuntimeStatus) {
         description: "Free trial messages on first Google registration",
         metadata: { source: "google_signup" }
       });
+      void notifyNewUserRegistration(store, user, await store.getOrganization(organization.id) || organization);
     } else {
       await store.updateUser(user.id, {
         provider: user.provider === "email" ? user.provider : "google",
@@ -532,6 +535,7 @@ export function apiRouter(store: Store, runtime: RuntimeStatus) {
       channel: "whatsapp",
       channelMessageId: sent.id,
       status: sent.failed ? "failed" : "sent",
+      error: sent.error || "",
       timestamp: new Date().toISOString()
     });
     if (sent.failed) {

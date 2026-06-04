@@ -29,9 +29,25 @@ export async function sendWhatsAppText(assistant: Assistant, to: string, body: s
   });
 
   if (!response.ok) {
-    return { id: "", skipped: false, failed: true };
+    const error = await readMetaError(response);
+    return { id: "", skipped: false, failed: true, error };
   }
 
   const data = await response.json() as { messages?: Array<{ id: string }> };
   return { id: data.messages?.[0]?.id || "", skipped: false };
+}
+
+async function readMetaError(response: Response) {
+  try {
+    const data = await response.json() as { error?: { message?: string; code?: number; error_subcode?: number; fbtrace_id?: string } };
+    const error = data.error;
+    if (!error?.message) return `Meta API error: ${response.status}`;
+    const parts = [error.message];
+    if (error.code) parts.push(`code ${error.code}`);
+    if (error.error_subcode) parts.push(`subcode ${error.error_subcode}`);
+    if (error.fbtrace_id) parts.push(`trace ${error.fbtrace_id}`);
+    return parts.join(" | ");
+  } catch {
+    return `Meta API error: ${response.status}`;
+  }
 }

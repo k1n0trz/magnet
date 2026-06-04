@@ -1076,6 +1076,30 @@ nav b {
 .referral-card a { display: block; }
 .referral-card p { margin: 5px 0; color: #c8d8d5; line-height: 1.35; }
 .referral-card a { color: #43ef55; font-size: 12px; font-weight: 800; }
+.issue-panel {
+  width: min(560px, 92%);
+  display: grid;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 12px;
+  border: 1px solid rgba(245,185,66,0.3);
+  border-radius: 8px;
+  background: rgba(245,185,66,0.1);
+}
+.issue-panel strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #ffe0a6;
+}
+.issue-row {
+  display: grid;
+  gap: 2px;
+  color: #f3dfb8;
+  font-size: 12px;
+}
+.issue-row span { color: #fff3d1; font-weight: 800; }
+.issue-row small { color: #d5c6a4; line-height: 1.35; }
 .bubble small { flex-wrap: wrap; }
 .mini-chip { padding: 2px 7px; color: #c8f8d2; background: rgba(37,211,102,0.12); }
 .mini-chip.danger { color: #ffd1d1; background: rgba(239,68,68,0.16); }
@@ -1099,18 +1123,51 @@ nav b {
 .conversation-top { justify-content: space-between; }
 .conversation-top strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .conversation-top span { flex: 0 0 auto; color: #91a4a5; font-size: 12px; }
-.channel-icon {
-  width: 19px;
-  height: 19px;
+.channel-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   flex: 0 0 auto;
+  min-height: 24px;
+  max-width: 150px;
+  padding: 3px 8px;
+  border: 1px solid rgba(37,211,102,0.22);
+  border-radius: 999px;
+  background: rgba(37,211,102,0.1);
+  color: #bfffd0;
+  font-size: 11px;
+  font-weight: 800;
+}
+.channel-badge.compact {
+  max-width: 96px;
+  padding: 2px 7px;
+}
+.channel-badge img {
+  width: 14px;
+  height: 14px;
   object-fit: contain;
   filter: drop-shadow(0 0 8px rgba(37, 211, 102, 0.18));
+}
+.channel-badge span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: inherit;
 }
 .conversation-preview span { min-width: 0; flex: 1; color: #c9d8d5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .conversation-preview em { flex: 0 0 auto; font-style: normal; }
 .conversation-meta { justify-content: space-between; }
 .conversation-icons { display: inline-flex !important; align-items: center; gap: 8px; color: #43ef55; flex: 0 0 auto; }
 .conversation-icons svg:last-child { color: #f5b942; }
+.issue-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #ffd480;
+  font-size: 11px;
+  font-weight: 900;
+}
 .conversation-chevron { display: none; color: #9fb0b0 !important; transition: transform 160ms ease; }
 .conversation-item-shell.open .conversation-chevron { transform: rotate(180deg); }
 .unread-dot {

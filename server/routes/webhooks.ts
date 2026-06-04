@@ -87,16 +87,18 @@ export function webhooksRouter(store: Store, handlers: HandlerRegistry) {
         const updated = await store.updateMessageStatus({
           assistantId: assistant.id,
           channelMessageId: update.messageId,
-          status: update.status
+          status: update.status,
+          ...errorSummary(update.error)
         });
 
         if (update.status === "failed") {
+          const error = errorSummary(update.error);
           await store.addEvent({
             assistantId: assistant.id,
             contactId: updated?.contactId || "",
             conversationId: updated?.conversationId || "",
             type: "message_delivery_failed",
-            payload: { channel, messageId: update.messageId, error: update.error }
+            payload: { channel, messageId: update.messageId, error: error.error, errorCode: error.errorCode, rawError: update.error }
           });
         }
       }
@@ -198,6 +200,7 @@ export function webhooksRouter(store: Store, handlers: HandlerRegistry) {
             channel,
             channelMessageId: sent.messageId,
             status: sent.error ? "failed" : "sent",
+            error: sent.error || "",
             timestamp: new Date().toISOString()
           });
 
@@ -257,6 +260,20 @@ function mapWhatsAppStatus(status: unknown): Message["status"] | undefined {
     return status;
   }
   return undefined;
+}
+
+function errorSummary(error: unknown) {
+  const first = Array.isArray(error) ? error[0] : error;
+  if (!first || typeof first !== "object") return {};
+  const item = first as { message?: unknown; title?: unknown; code?: unknown; error_code?: unknown; error_data?: { details?: unknown }; fbtrace_id?: unknown };
+  const message = String(item.message || item.title || item.error_data?.details || "").trim();
+  const code = String(item.code || item.error_code || "").trim();
+  const trace = String(item.fbtrace_id || "").trim();
+  const detail = [message, code ? `code ${code}` : "", trace ? `trace ${trace}` : ""].filter(Boolean).join(" | ");
+  return {
+    ...(detail ? { error: detail } : {}),
+    ...(code ? { errorCode: code } : {})
+  };
 }
 
 function asArray(value: unknown): unknown[] {

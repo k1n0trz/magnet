@@ -432,6 +432,8 @@ export function createMemoryStore(seed = false): Store {
       const message = messages.find((item) => item.assistantId === input.assistantId && item.channelMessageId === input.channelMessageId);
       if (!message) return undefined;
       message.status = input.status;
+      if (input.error) message.error = input.error;
+      if (input.errorCode) message.errorCode = input.errorCode;
       return message;
     },
     async listMessages(assistantId, conversationId) {

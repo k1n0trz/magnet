@@ -227,6 +227,8 @@ export interface Message {
   channel: ChannelType;
   channelMessageId: string;
   status: "received" | "sent" | "delivered" | "read" | "failed";
+  error?: string;
+  errorCode?: string;
   timestamp: string;
   createdAt: string;
 }
@@ -313,7 +315,7 @@ export interface Store {
   updateConversation(id: string, patch: Partial<Conversation>): Promise<Conversation>;
   listConversations(assistantId: string): Promise<Conversation[]>;
   addMessage(input: Omit<Message, "id" | "createdAt">): Promise<Message>;
-  updateMessageStatus(input: { assistantId: string; channelMessageId: string; status: Message["status"] }): Promise<Message | undefined>;
+  updateMessageStatus(input: { assistantId: string; channelMessageId: string; status: Message["status"]; error?: string; errorCode?: string }): Promise<Message | undefined>;
   listMessages(assistantId: string, conversationId?: string): Promise<Message[]>;
   listTriggers(assistantId: string): Promise<Trigger[]>;
   upsertTrigger(input: Partial<Trigger> & { assistantId: string; name: string }): Promise<Trigger>;
